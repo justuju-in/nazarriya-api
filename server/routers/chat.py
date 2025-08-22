@@ -1,12 +1,12 @@
 from fastapi import APIRouter
-from server.models import ChatMessage, ChatResponse
+from server.models import ChatMessageRequest, ChatResponse
 from server import session_manager
 # from server.rag_pipeline import run_rag
 
 router = APIRouter()
 
 @router.post("/chat", response_model=ChatResponse)
-def chat_endpoint(msg: ChatMessage):
+def chat_endpoint(msg: ChatMessageRequest):
     # Create session if not provided
     if not msg.session_id:
         session_id = session_manager.create_session(msg.user_id)
