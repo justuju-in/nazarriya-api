@@ -1,5 +1,5 @@
-from database import engine, SessionLocal
-from models import Base, User, ChatSession, ChatMessage
+from .database import engine, SessionLocal
+from .models import Base, User, ChatSession, ChatMessage
 from sqlalchemy.orm import Session
 import uuid
 

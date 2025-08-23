@@ -75,7 +75,6 @@ class UserProfile(BaseModel):
     created_at: str
 
 class ChatMessageRequest(BaseModel):
-    user_id: str
     message: str
     session_id: Optional[str] = None
 

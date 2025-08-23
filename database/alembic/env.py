@@ -6,7 +6,12 @@ import os
 import sys
 
 # Add the server directory to the Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Get the database directory (where this env.py file is located)
+database_dir = os.path.dirname(os.path.abspath(__file__))
+# Get the parent directory (nazarriya-api)
+parent_dir = os.path.dirname(database_dir)
+# Add the parent directory to Python path so we can import from server
+sys.path.insert(0, parent_dir)
 
 # Import models after setting up the path
 try:
