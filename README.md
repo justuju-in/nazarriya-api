@@ -7,6 +7,7 @@ NazarRiya web server
 ### 0. Setup
 Clone repo: `git clone git@github.com:paulrahul/nazarriya-backend.git`
 Install dependencies: `pip install -r requirements.txt`
+Install PostgreSQL
 
 ### 1. Environment Variables
 Set the following environment variables in your system:
@@ -27,6 +28,12 @@ export PORT="8000"
 
 **Note**: Never commit environment variables to version control. Each developer should set these in their local environment.
 
+### 2. Setup DB
+```bash
+# Run *.bat for Windows or .sh for Linux but if you have Python, then running the .py script is the best option.
+python database/setup_database.py
+```
+
 ### 2. Run server
 ```bash
 uvicorn server.main:app --reload
@@ -35,7 +42,7 @@ uvicorn server.main:app --reload
 ### 3. Test Authentication
 ```bash
 # Test the complete authentication system
-python test_auth.py
+python test/test_auth.py
 ```
 
 ### 4. API Usage Examples
@@ -100,15 +107,46 @@ curl -X GET "http://localhost:8000/auth/me" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE"
 ```
 
-### Send Chat Message (Protected)
+### Create a New Chat Session
 ```bash
-curl -X POST "http://localhost:8000/api/chat" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE" \
+curl -X POST "http://localhost:8000/chat/sessions" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "message": "Hello, how are you?",
-    "session_id": null
-  }'
+  -d '{"title": "My New Chat"}'
+```
+
+### Send a Chat Message
+```bash
+curl -X POST "http://localhost:8000/chat/chat" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello, how are you?", "session_id": "SESSION_UUID"}'
+```
+
+### Get User Sessions
+```bash
+curl -X GET "http://localhost:8000/chat/sessions?limit=10&offset=0" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### Get Session History
+```bash
+curl -X GET "http://localhost:8000/chat/sessions/SESSION_UUID/history" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### Update Session Title
+```bash
+curl -X PUT "http://localhost:8000/chat/sessions/SESSION_UUID/title" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Updated Title"}'
+```
+
+### Delete Session
+```bash
+curl -X DELETE "http://localhost:8000/chat/sessions/SESSION_UUID" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
 ## 🏗️ Architecture

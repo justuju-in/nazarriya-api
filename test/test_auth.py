@@ -14,14 +14,21 @@ def test_authentication():
     
     # Test 1: User Registration
     print("\n1. Testing User Registration...")
+    
+    # Use a unique email to avoid conflicts
+    import time
+    unique_email = f"test_{int(time.time())}@example.com"
+    
     register_data = {
-        "email": "test@example.com",
+        "email": unique_email,
         "password": "testpassword123",
         "first_name": "Test",
         "age": 25,
         "preferred_language": "English",
         "state": "California"
     }
+    
+    print(f"   Using email: {unique_email}")
     
     try:
         response = requests.post(f"{BASE_URL}/auth/register", json=register_data)
@@ -38,7 +45,7 @@ def test_authentication():
     # Test 2: User Login
     print("\n2. Testing User Login...")
     login_data = {
-        "email": "test@example.com",
+        "email": unique_email,
         "password": "testpassword123"
     }
     

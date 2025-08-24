@@ -96,3 +96,26 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     user: UserProfile
+
+# New models for session management
+class SessionCreate(BaseModel):
+    title: Optional[str] = None
+
+class SessionUpdate(BaseModel):
+    title: str
+
+class SessionResponse(BaseModel):
+    id: str
+    title: str
+    created_at: str
+    updated_at: str
+    message_count: int
+
+class SessionHistoryResponse(BaseModel):
+    session_id: str
+    history: List[dict]
+
+class MessageResponse(BaseModel):
+    sender: str
+    text: str
+    created_at: str

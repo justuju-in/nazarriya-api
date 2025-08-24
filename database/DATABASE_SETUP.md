@@ -101,35 +101,125 @@ python init_db.py
 
 ## Database Schema
 
-The database includes the following tables:
+The database includes the following tables with their complete DDL statements:
 
 ### Users Table
-- **id**: UUID primary key
-- **email**: Unique email address
-- **hashed_password**: Encrypted password
-- **first_name**: User's first name
-- **age**: User's age
-- **preferred_language**: Preferred language (English/Hindi)
-- **state**: Indian state
-- **is_active**: Account status
-- **created_at**: Account creation timestamp
-- **updated_at**: Last update timestamp
+```sql
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) NOT NULL UNIQUE,
+    hashed_password VARCHAR(255) NOT NULL,
+    first_name VARCHAR(100),
+    age INTEGER,
+    preferred_language VARCHAR(50),
+    state VARCHAR(100),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Create index on email for faster lookups
+CREATE INDEX ix_users_email ON users (email);
+```
+
+**Table Description:**
+- **id**: UUID primary key, auto-generated
+- **email**: Unique email address (indexed)
+- **hashed_password**: Encrypted password hash
+- **first_name**: User's first name (optional)
+- **age**: User's age (optional)
+- **preferred_language**: Preferred language - English/Hindi (optional)
+- **state**: Indian state (optional)
+- **is_active**: Account status, defaults to TRUE
+- **created_at**: Account creation timestamp, auto-set
+- **updated_at**: Last update timestamp, auto-updated
 
 ### Chat Sessions Table
-- **id**: UUID primary key
-- **user_id**: Foreign key to users table
-- **title**: Session title (auto-generated)
-- **metadata**: JSON field for session context
-- **created_at**: Session creation timestamp
-- **updated_at**: Last activity timestamp
+```sql
+CREATE TABLE chat_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(255),
+    session_data JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Create index on user_id for faster user session lookups
+CREATE INDEX ix_chat_sessions_user_id ON chat_sessions (user_id);
+```
+
+**Table Description:**
+- **id**: UUID primary key, auto-generated
+- **user_id**: Foreign key to users table (cascade delete)
+- **title**: Session title, auto-generated from first message (optional)
+- **session_data**: JSONB field for session context and preferences
+- **created_at**: Session creation timestamp, auto-set
+- **updated_at**: Last activity timestamp, auto-updated
 
 ### Chat Messages Table
-- **id**: UUID primary key
-- **session_id**: Foreign key to chat_sessions table
-- **sender_type**: 'user' or 'bot'
-- **content**: Message content
-- **metadata**: JSON field for sources, context
-- **created_at**: Message timestamp
+```sql
+CREATE TABLE chat_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    sender_type VARCHAR(20) NOT NULL,
+    content TEXT NOT NULL,
+    message_data JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create index on session_id for faster message retrieval
+CREATE INDEX ix_chat_messages_session_id ON chat_messages (session_id);
+```
+
+**Table Description:**
+- **id**: UUID primary key, auto-generated
+- **session_id**: Foreign key to chat_sessions table (cascade delete)
+- **sender_type**: Message sender - 'user' or 'bot'
+- **content**: Message text content
+- **message_data**: JSONB field for sources, context, and metadata
+- **created_at**: Message timestamp, auto-set
+
+### Complete Database Creation Script
+```sql
+-- Create all tables in the correct order (respecting foreign key dependencies)
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) NOT NULL UNIQUE,
+    hashed_password VARCHAR(255) NOT NULL,
+    first_name VARCHAR(100),
+    age INTEGER,
+    preferred_language VARCHAR(50),
+    state VARCHAR(100),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX ix_users_email ON users (email);
+
+CREATE TABLE chat_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(255),
+    session_data JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX ix_chat_sessions_user_id ON chat_sessions (user_id);
+
+CREATE TABLE chat_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    sender_type VARCHAR(20) NOT NULL,
+    content TEXT NOT NULL,
+    message_data JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX ix_chat_messages_session_id ON chat_messages (session_id);
+```
 
 ## Environment Variables
 
