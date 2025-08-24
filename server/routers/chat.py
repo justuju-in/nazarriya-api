@@ -7,6 +7,7 @@ from server.models import (
 from server import session_manager
 from server.dependencies import get_current_user
 from server.database import get_db
+from server.utils.logging import logger, log_error
 from typing import List, Optional
 # from server.rag_pipeline import run_rag
 
@@ -19,19 +20,25 @@ def chat_endpoint(
     db: Session = Depends(get_db)
 ):
     """Send a message and get a response from the RAG system."""
+    logger.info(f"Chat message from user {current_user.id}: {msg.message[:50]}...")
+    logger.info(f"Session ID: {msg.session_id or 'new'}")
+    
     try:
         # Create session if not provided
         if not msg.session_id:
             session_id = session_manager.create_session(str(current_user.id), db)
+            logger.info(f"Created new session: {session_id}")
         else:
             # Verify the session belongs to the current user
             session = session_manager.get_session_by_id(msg.session_id, str(current_user.id), db)
             if not session:
+                logger.warning(f"Access denied to session {msg.session_id} for user {current_user.id}")
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Access denied to this session"
                 )
             session_id = msg.session_id
+            logger.info(f"Using existing session: {session_id}")
 
         # Store user message
         session_manager.add_message(
@@ -41,9 +48,11 @@ def chat_endpoint(
             db, 
             str(current_user.id)
         )
+        logger.info(f"Stored user message in session {session_id}")
         
         # Get chat history for context
         history = session_manager.get_history(session_id, db, str(current_user.id))
+        logger.info(f"Retrieved {len(history)} messages from history")
 
         # Get RAG response (placeholder for now)
         # answer, sources = run_rag(msg.message, history)
@@ -60,15 +69,21 @@ def chat_endpoint(
             str(current_user.id),
             message_data
         )
+        logger.info(f"Stored bot response in session {session_id}")
 
+        logger.info(f"Chat request completed successfully for session {session_id}")
         return ChatResponse(session_id=session_id, response=answer, sources=sources)
     
     except ValueError as e:
+        logger.warning(f"Validation error in chat: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+    except HTTPException:
+        raise
     except Exception as e:
+        log_error(e, "chat_endpoint", user_id=str(current_user.id), message=msg.message, session_id=msg.session_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while processing your request"
