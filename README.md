@@ -3,6 +3,10 @@ NazarRiya web server
 
 
 ## Developer instructions
+Note: Latest code and instructions are in the "development" branch which will
+      periodically be merged to main after reaching specific milestones and
+      performing all regression tests.
+
 0. Setup
 Clone repo: `git clone git@github.com:paulrahul/nazarriya-backend.git`
 Install dependencies: `pip install -r requiremements.txt`
