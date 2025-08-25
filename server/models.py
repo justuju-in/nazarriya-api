@@ -16,8 +16,10 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     first_name = Column(String(100), nullable=True)
     age = Column(Integer, nullable=True)
+    gender = Column(String(10), nullable=True)  # 'M', 'F', 'flinta', 'not_specified'
     preferred_language = Column(String(50), nullable=True)
     state = Column(String(100), nullable=True)
+    preferred_bot = Column(String(10), nullable=True)  # 'N' for Nazar, 'R' for Riya
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -58,8 +60,10 @@ class UserCreate(BaseModel):
     password: str
     first_name: Optional[str] = None
     age: Optional[int] = None
+    gender: Optional[str] = None
     preferred_language: Optional[str] = None
     state: Optional[str] = None
+    preferred_bot: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: str
@@ -70,8 +74,10 @@ class UserProfile(BaseModel):
     email: str
     first_name: Optional[str] = None
     age: Optional[int] = None
+    gender: Optional[str] = None
     preferred_language: Optional[str] = None
     state: Optional[str] = None
+    preferred_bot: Optional[str] = None
     created_at: str
 
 class ChatMessageRequest(BaseModel):
@@ -119,3 +125,12 @@ class MessageResponse(BaseModel):
     sender: str
     text: str
     created_at: str
+
+# New models for profile updates
+class UserProfileUpdate(BaseModel):
+    first_name: Optional[str] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    preferred_language: Optional[str] = None
+    state: Optional[str] = None
+    preferred_bot: Optional[str] = None

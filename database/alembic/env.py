@@ -16,7 +16,7 @@ sys.path.insert(0, parent_dir)
 # Import models after setting up the path
 try:
     from server.database import Base
-    from server.models import User, ChatSession, ChatMessage
+    # We don't need to import specific models for manual migrations
 except ImportError as e:
     print(f"Error importing models: {e}")
     print(f"Current working directory: {os.getcwd()}")

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..models import UserCreate, UserLogin, UserProfile, Token, User
+from ..models import UserCreate, UserLogin, UserProfile, UserProfileUpdate, Token, User
 from ..utils.auth import (
     get_password_hash, 
     authenticate_user, 
@@ -38,8 +38,10 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
             hashed_password=hashed_password,
             first_name=user.first_name,
             age=user.age,
+            gender=user.gender,
             preferred_language=user.preferred_language,
-            state=user.state
+            state=user.state,
+            preferred_bot=user.preferred_bot
         )
         
         db.add(db_user)
@@ -53,8 +55,10 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
             email=db_user.email,
             first_name=db_user.first_name,
             age=db_user.age,
+            gender=db_user.gender,
             preferred_language=db_user.preferred_language,
             state=db_user.state,
+            preferred_bot=db_user.preferred_bot,
             created_at=db_user.created_at.isoformat()
         )
     except HTTPException:
@@ -97,8 +101,10 @@ def login_user(user_credentials: UserLogin, db: Session = Depends(get_db)):
             email=user.email,
             first_name=user.first_name,
             age=user.age,
+            gender=user.gender,
             preferred_language=user.preferred_language,
             state=user.state,
+            preferred_bot=user.preferred_bot,
             created_at=user.created_at.isoformat()
         )
         
@@ -154,7 +160,72 @@ def get_current_user(
         email=user.email,
         first_name=user.first_name,
         age=user.age,
+        gender=user.gender,
         preferred_language=user.preferred_language,
         state=user.state,
+        preferred_bot=user.preferred_bot,
+        created_at=user.created_at.isoformat()
+    )
+
+@router.put("/profile", response_model=UserProfile)
+def update_user_profile(
+    profile_update: UserProfileUpdate,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+):
+    """Update current user profile."""
+    token = credentials.credentials
+    payload = verify_token(token)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    user = get_user_by_id(db, user_id=user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Update only the fields that are provided
+    if profile_update.first_name is not None:
+        user.first_name = profile_update.first_name
+    if profile_update.age is not None:
+        user.age = profile_update.age
+    if profile_update.gender is not None:
+        user.gender = profile_update.gender
+    if profile_update.preferred_language is not None:
+        user.preferred_language = profile_update.preferred_language
+    if profile_update.state is not None:
+        user.state = profile_update.state
+    if profile_update.preferred_bot is not None:
+        user.preferred_bot = profile_update.preferred_bot
+    
+    db.commit()
+    db.refresh(user)
+    
+    logger.info(f"Profile updated successfully for user: {user.email} (ID: {user.id})")
+    
+    return UserProfile(
+        id=str(user.id),
+        email=user.email,
+        first_name=user.first_name,
+        age=user.age,
+        gender=user.gender,
+        preferred_language=user.preferred_language,
+        state=user.state,
+        preferred_bot=user.preferred_bot,
         created_at=user.created_at.isoformat()
     )

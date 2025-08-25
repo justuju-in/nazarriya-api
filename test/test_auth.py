@@ -24,8 +24,10 @@ def test_authentication():
         "password": "testpassword123",
         "first_name": "Test",
         "age": 25,
+        "gender": "M",
         "preferred_language": "English",
-        "state": "California"
+        "state": "California",
+        "preferred_bot": "N"
     }
     
     print(f"   Using email: {unique_email}")
@@ -35,6 +37,14 @@ def test_authentication():
         if response.status_code == 200:
             user = response.json()
             print(f"✅ Registration successful! User ID: {user['id']}")
+            print(f"   Gender: {user['gender']}")
+            print(f"   Preferred Bot: {user['preferred_bot']}")
+            
+            # Verify the new fields are present in registration response
+            if user.get('gender') == 'M' and user.get('preferred_bot') == 'N':
+                print("✅ New fields (gender and preferred_bot) are properly returned in registration!")
+            else:
+                print("❌ New fields not properly returned in registration response!")
         else:
             print(f"❌ Registration failed: {response.status_code} - {response.text}")
             return
@@ -57,6 +67,14 @@ def test_authentication():
             print(f"✅ Login successful! Token received.")
             print(f"   Token type: {token_data['token_type']}")
             print(f"   User: {token_data['user']['email']}")
+            print(f"   User Gender: {token_data['user']['gender']}")
+            print(f"   User Preferred Bot: {token_data['user']['preferred_bot']}")
+            
+            # Verify the new fields are present in login response
+            if token_data['user'].get('gender') == 'M' and token_data['user'].get('preferred_bot') == 'N':
+                print("✅ New fields (gender and preferred_bot) are properly returned in login!")
+            else:
+                print("❌ New fields not properly returned in login response!")
         else:
             print(f"❌ Login failed: {response.status_code} - {response.text}")
             return
@@ -75,6 +93,14 @@ def test_authentication():
             print(f"✅ Profile retrieved successfully!")
             print(f"   Email: {user_profile['email']}")
             print(f"   Name: {user_profile['first_name']}")
+            print(f"   Gender: {user_profile['gender']}")
+            print(f"   Preferred Bot: {user_profile['preferred_bot']}")
+            
+            # Verify the new fields are present
+            if user_profile.get('gender') == 'M' and user_profile.get('preferred_bot') == 'N':
+                print("✅ New fields (gender and preferred_bot) are properly set!")
+            else:
+                print("❌ New fields not properly set in profile!")
         else:
             print(f"❌ Profile retrieval failed: {response.status_code} - {response.text}")
     except requests.exceptions.ConnectionError:
@@ -101,8 +127,38 @@ def test_authentication():
         print("❌ Could not connect to server.")
         return
     
-    # Test 5: Test Invalid Token
-    print("\n5. Testing Invalid Token...")
+    # Test 5: Test Profile Update
+    print("\n5. Testing Profile Update...")
+    profile_update_data = {
+        "gender": "F",
+        "preferred_bot": "R",
+        "age": 26
+    }
+    
+    try:
+        response = requests.put(f"{BASE_URL}/auth/profile", json=profile_update_data, headers=headers)
+        if response.status_code == 200:
+            updated_profile = response.json()
+            print(f"✅ Profile update successful!")
+            print(f"   Updated gender: {updated_profile['gender']}")
+            print(f"   Updated preferred_bot: {updated_profile['preferred_bot']}")
+            print(f"   Updated age: {updated_profile['age']}")
+            
+            # Verify the changes were actually saved
+            if (updated_profile['gender'] == 'F' and 
+                updated_profile['preferred_bot'] == 'R' and 
+                updated_profile['age'] == 26):
+                print("✅ All profile updates verified!")
+            else:
+                print("❌ Profile updates not properly saved!")
+        else:
+            print(f"❌ Profile update failed: {response.status_code} - {response.text}")
+    except requests.exceptions.ConnectionError:
+        print("❌ Could not connect to server.")
+        return
+    
+    # Test 6: Test Invalid Token
+    print("\n6. Testing Invalid Token...")
     invalid_headers = {"Authorization": "Bearer invalid_token_here"}
     
     try:
