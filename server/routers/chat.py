@@ -54,10 +54,43 @@ def chat_endpoint(
         history = session_manager.get_history(session_id, db, str(current_user.id))
         logger.info(f"Retrieved {len(history)} messages from history")
 
-        # Get RAG response (placeholder for now)
-        # answer, sources = run_rag(msg.message, history)
-        answer = "This is a test response from the enhanced chat system"
-        sources = ["test.com"]
+        # Get RAG response from LLM service
+        try:
+            import requests
+            import json
+            
+            # Prepare history for LLM service
+            llm_history = []
+            for hist_msg in history:
+                if hist_msg.get("role") == "user":
+                    llm_history.append({"role": "user", "message": hist_msg.get("content", "")})
+                elif hist_msg.get("role") == "bot":
+                    llm_history.append({"role": "assistant", "message": hist_msg.get("content", "")})
+            
+            # Call LLM service
+            response = requests.post(
+                "http://localhost:8001/rag/query",
+                json={
+                    "query": msg.message,
+                    "history": llm_history,
+                    "max_tokens": 1000
+                },
+                timeout=30.0
+            )
+            
+            if response.status_code == 200:
+                rag_response = response.json()
+                answer = rag_response["answer"]
+                sources = [source["metadata"]["source"] for source in rag_response["sources"]]
+            else:
+                logger.warning(f"LLM service error: {response.status_code}")
+                answer = "I'm having trouble accessing my knowledge base right now. Please try again later."
+                sources = []
+                
+        except Exception as e:
+            logger.error(f"Error calling LLM service: {str(e)}")
+            answer = "I'm experiencing technical difficulties. Please try again later."
+            sources = []
         
         # Store bot reply with metadata
         message_data = {"sources": sources}
