@@ -69,7 +69,17 @@ def get_history(session_id: str, db: Session, user_id: str) -> List[dict]:
         ChatMessage.session_id == session_id
     ).order_by(ChatMessage.created_at).all()
     
-    return [{"sender": msg.sender_type, "text": msg.content, "created_at": msg.created_at} for msg in messages]
+    return [
+        {
+            "id": str(msg.id),
+            "session_id": str(msg.session_id),
+            "sender_type": msg.sender_type,
+            "content": msg.content,
+            "message_data": msg.message_data,
+            "created_at": msg.created_at.isoformat() if msg.created_at else None
+        } 
+        for msg in messages
+    ]
 
 def get_user_sessions(user_id: str, db: Session, limit: int = 50, offset: int = 0) -> List[dict]:
     """Get all chat sessions for a user with pagination."""
