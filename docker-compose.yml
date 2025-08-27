@@ -1,0 +1,85 @@
+
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: nazarriya
+      POSTGRES_USER: nazarriya_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/alembic:/docker-entrypoint-initdb.d
+    ports:
+      - "5434:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nazarriya_user -d nazarriya"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nazarriya API Server
+  nazarriya-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://nazarriya_user:${POSTGRES_PASSWORD}@postgres:5432/nazarriya
+      - SECRET_KEY=${SECRET_KEY}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
+      - DEBUG=${DEBUG:-False}
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Automatically run migrations and wait for database before starting
+    command: >
+      sh -c "
+        echo 'Waiting for database to be ready...' &&
+        python wait_for_db.py &&
+        if [ $? -eq 0 ]; then
+          echo 'Database is ready, running migrations...' &&
+          cd database && alembic upgrade head &&
+          echo 'Migrations completed, starting API server...' &&
+          cd .. && uvicorn server.main:app --host 0.0.0.0 --port 8000
+        else
+          echo 'Failed to connect to database, exiting...' &&
+          exit 1
+        fi
+      "
+
+  # Nazarriya LLM Service
+  nazarriya-llm:
+    build: ../nazarriya-llm
+    ports:
+      - "8001:8001"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-3.5-turbo}
+      - OPENAI_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-text-embedding-ada-002}
+      - CHUNK_SIZE=${CHUNK_SIZE:-1000}
+      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-200}
+      - MAX_TOKENS=${MAX_TOKENS:-1000}
+    volumes:
+      - ../nazarriya-llm/data:/app/data
+      - ../nazarriya-llm/chroma_db:/app/chroma_db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data:

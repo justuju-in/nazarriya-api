@@ -15,3 +15,5 @@ __pycache__/
 # Prompt MD files
 architecture.md
 prompt-*.md
+
+*-workspace
