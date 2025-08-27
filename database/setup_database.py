@@ -346,10 +346,10 @@ def main():
     print("🚀 Setting up NazarRiya Database...")
     
     # Check for database credentials
-    if not os.getenv("PGPASSWORD") and not os.getenv("DATABASE_URL"):
+    if not os.getenv("POSTGRES_PASSWORD") and not os.getenv("DATABASE_URL"):
         print_status("🔑 No database credentials found in environment variables")
-        print_status("   You may need to set PGPASSWORD or DATABASE_URL")
-        print_status("   Common default password: 'postgres' (try: export PGPASSWORD=postgres)")
+        print_status("   You may need to set POSTGRES_PASSWORD or DATABASE_URL")
+        print_status("   Common default password: 'postgres' (try: export POSTGRES_PASSWORD=postgres)")
         print_status("")
     
     # Detect OS
@@ -442,8 +442,8 @@ def main():
         print_error("Cannot connect to database 'nazarriya'. Please check your credentials.")
         print_error("")
         print_error("🔑 Authentication Options:")
-        print_error("1. Set PGPASSWORD environment variable:")
-        print_error("   export PGPASSWORD='your_postgres_password'")
+        print_error("1. Set POSTGRES_PASSWORD environment variable:")
+        print_error("   export POSTGRES_PASSWORD='your_postgres_password'")
         print_error("2. Set DATABASE_URL environment variable:")
         print_error("   export DATABASE_URL='postgresql://postgres:your_password@localhost:5432/nazarriya'")
         print_error("3. Create .pgpass file in your home directory")

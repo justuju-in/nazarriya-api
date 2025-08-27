@@ -30,7 +30,15 @@ config = context.config
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    try:
+        fileConfig(config.config_file_name)
+    except Exception as e:
+        # If logging config fails, set up basic logging to avoid format strings in output
+        import logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(levelname)s: %(message)s'
+        )
 
 # add your model's MetaData object here
 # for 'autogenerate' support
@@ -54,7 +62,13 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    # Check if we're running in Docker (use environment variable)
+    docker_db_url = os.getenv("DATABASE_URL")
+    if docker_db_url:
+        url = docker_db_url
+    else:
+        url = config.get_main_option("sqlalchemy.url")
+    
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -73,19 +87,31 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    # Get the base database URL
-    url = config.get_main_option("sqlalchemy.url")
+    # Check if we're running in Docker (use environment variable)
+    docker_db_url = os.getenv("DATABASE_URL")
+    if docker_db_url:
+        # Use the Docker database URL from environment
+        url = docker_db_url
+        print(f"Using Docker database URL: {url.replace(os.getenv('POSTGRES_PASSWORD', ''), '***')}")
+    else:
+        # Fall back to config file URL
+        url = config.get_main_option("sqlalchemy.url")
+        
+        # Add password from environment variable if available
+        pgpassword = os.getenv("POSTGRES_PASSWORD")
+        if pgpassword:
+            # Insert password into the URL
+            if "://postgres@" in url:
+                url = url.replace("://postgres@", f"://postgres:{pgpassword}@")
+        
+        print(f"Using config file database URL: {url.replace(pgpassword, '***') if pgpassword else url}")
     
-    # Add password from environment variable if available
-    import os
-    pgpassword = os.getenv("PGPASSWORD")
-    if pgpassword:
-        # Insert password into the URL
-        if "://postgres@" in url:
-            url = url.replace("://postgres@", f"://postgres:{pgpassword}@")
+    # Suppress alembic logging output to avoid format strings
+    import logging
+    alembic_logger = logging.getLogger('alembic')
+    alembic_logger.setLevel(logging.WARNING)
     
     # Create engine with the resolved URL
-    print(f"Connecting to database with URL: {url.replace(pgpassword, '***') if pgpassword else url}")
     connectable = create_engine(url, poolclass=pool.NullPool)
 
     with connectable.connect() as connection:

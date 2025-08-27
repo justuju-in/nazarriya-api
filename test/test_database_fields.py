@@ -17,10 +17,10 @@ def test_database_fields():
     db_port = os.getenv('DB_PORT', '5432')
     db_name = os.getenv('DB_NAME', 'nazarriya')
     db_user = os.getenv('DB_USER', 'postgres')
-    db_password = os.getenv('PGPASSWORD', '')
+    db_password = os.getenv('POSTGRES_PASSWORD', '')
     
     if not db_password:
-        print("❌ PGPASSWORD environment variable not set")
+        print("❌ POSTGRES_PASSWORD environment variable not set")
         return False
     
     try:
