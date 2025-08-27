@@ -37,9 +37,7 @@ NazarRiya web server
 
 # Developer instructions
 
-Clone repo: `git clone git@github.com:paulrahul/nazarriya-backend.git`
-Install dependencies: `pip install -r requirements.txt`
-Install PostgreSQL
+Clone repo: `git clone git@github.com:paulrahul/nazarriya-api.git`
 
 ## Cloud deployment
 Check DEPLOYMENT.md
@@ -98,6 +96,8 @@ python test/run_tests.py
 ```
 
 ### Setting up only the API server
+Install dependencies: `pip install -r requirements.txt`
+Install PostgreSQL: https://www.postgresql.org/download/
 
 #### 1. Environment Variables
 Set the following environment variables in your system:
