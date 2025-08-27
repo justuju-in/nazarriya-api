@@ -5,7 +5,6 @@ NazarRiya web server
 ## Developer instructions
 
 ### 0. Setup
-=======
 *Note: Latest code and instructions are in the "development" branch which will
       periodically be merged to main after reaching specific milestones and
       performing all regression tests.*
