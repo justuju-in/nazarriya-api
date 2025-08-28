@@ -41,13 +41,21 @@ def main():
         print("-" * 40)
         
         try:
-            result = subprocess.run([sys.executable, test_script], cwd=script_dir)
+            result = subprocess.run([sys.executable, test_script], cwd=script_dir, capture_output=True, text=True)
+            
+            # Print output
+            if result.stdout:
+                print(result.stdout)
+            if result.stderr:
+                print(f"⚠️ Stderr: {result.stderr}")
+            
             if result.returncode == 0:
                 print(f"✅ {script_name} passed!")
                 passed_count += 1
             else:
-                print(f"❌ {script_name} failed!")
+                print(f"❌ {script_name} failed with exit code {result.returncode}")
                 all_passed = False
+                
         except Exception as e:
             print(f"❌ Error running {script_name}: {e}")
             all_passed = False

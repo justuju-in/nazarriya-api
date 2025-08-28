@@ -20,13 +20,14 @@ class ChatTester:
         self.session = requests.Session()
         self.access_token = None
         self.user_id = None
+        self.created_sessions = []  # Track created sessions for cleanup
     
     def login(self, email: str, password: str) -> bool:
         """Login and get access token."""
         try:
             response = self.session.post(
                 f"{self.base_url}/auth/login",
-                json={"email": email, "password": password}
+                json={"email_or_phone": email, "password": password}
             )
             
             if response.status_code == 200:
@@ -43,6 +44,33 @@ class ChatTester:
             print(f"❌ Login error: {e}")
             return False
     
+    def cleanup_test_data(self):
+        """Clean up all test data created during tests"""
+        try:
+            print("\n🧹 Cleaning up chat test data...")
+            
+            if not self.access_token:
+                print("   No access token available for cleanup")
+                return
+            
+            # Clean up created sessions
+            for session_id in self.created_sessions:
+                try:
+                    response = self.session.delete(f"{self.base_url}/api/sessions/{session_id}")
+                    if response.status_code == 200:
+                        print(f"   Deleted session: {session_id}")
+                    else:
+                        print(f"   Failed to delete session {session_id}: {response.status_code}")
+                except Exception as e:
+                    print(f"   Error deleting session {session_id}: {e}")
+            
+            # Clear the list
+            self.created_sessions.clear()
+            print("✅ Chat test data cleanup completed")
+            
+        except Exception as e:
+            print(f"⚠️ Warning during chat cleanup: {e}")
+    
     def test_create_session(self) -> str:
         """Test creating a new chat session."""
         try:
@@ -54,6 +82,7 @@ class ChatTester:
             if response.status_code == 200:
                 data = response.json()
                 session_id = data["session_id"]
+                self.created_sessions.append(session_id)  # Track for cleanup
                 print(f"✅ Session created: {session_id}")
                 return session_id
             else:
@@ -106,35 +135,33 @@ class ChatTester:
             response = self.session.get(f"{self.base_url}/api/sessions/{session_id}/history")
             
             if response.status_code == 200:
-                data = response.json()
-                history = data["history"]
-                print(f"✅ Retrieved session history: {len(history)} messages")
-                for msg in history:
-                    print(f"   - {msg['sender']}: {msg['text'][:50]}...")
+                history = response.json()
+                print(f"✅ Retrieved session history: {len(history['history'])} messages")
                 return True
             else:
-                print(f"❌ Get history failed: {response.status_code} - {response.text}")
+                print(f"❌ Get session history failed: {response.status_code} - {response.text}")
                 return False
         except Exception as e:
-            print(f"❌ Get history error: {e}")
+            print(f"❌ Get session history error: {e}")
             return False
     
     def test_update_session_title(self, session_id: str, new_title: str) -> bool:
         """Test updating session title."""
         try:
             response = self.session.put(
-                f"{self.base_url}/api/sessions/{session_id}/title",
+                f"{self.base_url}/api/sessions/{session_id}",
                 json={"title": new_title}
             )
             
             if response.status_code == 200:
-                print(f"✅ Session title updated to: {new_title}")
+                data = response.json()
+                print(f"✅ Session title updated: {data['title']}")
                 return True
             else:
-                print(f"❌ Update title failed: {response.status_code} - {response.text}")
+                print(f"❌ Update session title failed: {response.status_code} - {response.text}")
                 return False
         except Exception as e:
-            print(f"❌ Update title error: {e}")
+            print(f"❌ Update session title error: {e}")
             return False
     
     def test_delete_session(self, session_id: str) -> bool:
@@ -144,6 +171,9 @@ class ChatTester:
             
             if response.status_code == 200:
                 print(f"✅ Session deleted: {session_id}")
+                # Remove from tracking list
+                if session_id in self.created_sessions:
+                    self.created_sessions.remove(session_id)
                 return True
             else:
                 print(f"❌ Delete session failed: {response.status_code} - {response.text}")
@@ -152,58 +182,61 @@ class ChatTester:
             print(f"❌ Delete session error: {e}")
             return False
     
-    def run_full_test(self):
-        """Run the complete test suite."""
-        print("🚀 Starting Enhanced Chat System Test Suite")
+    def run_all_tests(self) -> bool:
+        """Run all chat tests."""
+        print("Testing Enhanced Chat Functionality...")
         print("=" * 50)
         
-        # Test 1: Login
-        if not self.login(TEST_EMAIL, TEST_PASSWORD):
-            print("❌ Cannot proceed without login")
-            return
-        
-        # Test 2: Create session
-        session_id = self.test_create_session()
-        if not session_id:
-            print("❌ Cannot proceed without session")
-            return
-        
-        # Test 3: Send chat messages
-        print("\n📝 Testing chat functionality...")
-        self.test_chat_message(session_id, "Hello, this is a test message!")
-        time.sleep(1)
-        self.test_chat_message(session_id, "This is another test message to verify the system works.")
-        
-        # Test 4: Get sessions list
-        print("\n📋 Testing session listing...")
-        self.test_get_sessions()
-        
-        # Test 5: Get session history
-        print("\n📚 Testing session history...")
-        self.test_get_session_history(session_id)
-        
-        # Test 6: Update session title
-        print("\n✏️ Testing title update...")
-        self.test_update_session_title(session_id, "Updated Test Session")
-        
-        # Test 7: Create another session and verify isolation
-        print("\n🆕 Testing session isolation...")
-        session_id_2 = self.test_create_session()
-        if session_id_2:
-            self.test_chat_message(session_id_2, "This is in a different session")
+        try:
+            # Login first
+            if not self.login(TEST_EMAIL, TEST_PASSWORD):
+                print("❌ Cannot proceed without login")
+                return False
+            
+            # Test session creation
+            session_id = self.test_create_session()
+            if not session_id:
+                print("❌ Session creation failed, cannot continue")
+                return False
+            
+            # Test chat functionality
+            self.test_chat_message(session_id, "Hello, this is a test message!")
+            time.sleep(1)  # Small delay to ensure message processing
+            self.test_chat_message(session_id, "This is another test message to verify the system works.")
+            
+            # Test session management
             self.test_get_sessions()
+            time.sleep(1)
+            self.test_get_session_history(session_id)
+            time.sleep(1)
+            self.test_update_session_title(session_id, "Updated Test Session")
+            
+            # Test multiple sessions
+            session_id_2 = self.test_create_session()
+            if session_id_2:
+                self.test_chat_message(session_id_2, "This is in a different session")
+                self.test_get_sessions()
+                time.sleep(1)
+                self.test_delete_session(session_id_2)
+            
+            print("\n" + "=" * 50)
+            print("🎉 Chat functionality test completed!")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Unexpected error during chat tests: {e}")
+            return False
         
-        # Test 8: Delete session
-        print("\n🗑️ Testing session deletion...")
-        self.test_delete_session(session_id_2 if session_id_2 else session_id)
-        
-        print("\n" + "=" * 50)
-        print("✅ Enhanced Chat System Test Suite Completed!")
+        finally:
+            # Always clean up test data, even if tests fail
+            self.cleanup_test_data()
 
 def main():
-    """Main function to run the test suite."""
+    """Main test runner."""
     tester = ChatTester(BASE_URL)
-    tester.run_full_test()
+    success = tester.run_all_tests()
+    return success
 
 if __name__ == "__main__":
-    main()
+    success = main()
+    exit(0 if success else 1)

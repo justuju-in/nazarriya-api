@@ -68,7 +68,11 @@ class UserCreate(BaseModel):
     preferred_bot: Optional[str] = None
 
 class UserLogin(BaseModel):
-    email: str
+    email_or_phone: str
+    password: str
+
+class UserLoginByPhone(BaseModel):
+    phone_number: str
     password: str
 
 class UserProfile(BaseModel):
