@@ -14,6 +14,7 @@ class User(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
+    phone_number = Column(String(20), nullable=False, unique=True, index=True)
     first_name = Column(String(100), nullable=True)
     age = Column(Integer, nullable=True)
     gender = Column(String(10), nullable=True)  # 'M', 'F', 'flinta', 'not_specified'
@@ -58,6 +59,7 @@ class ChatMessage(Base):
 class UserCreate(BaseModel):
     email: str
     password: str
+    phone_number: str
     first_name: Optional[str] = None
     age: Optional[int] = None
     gender: Optional[str] = None
@@ -72,6 +74,7 @@ class UserLogin(BaseModel):
 class UserProfile(BaseModel):
     id: str
     email: str
+    phone_number: str
     first_name: Optional[str] = None
     age: Optional[int] = None
     gender: Optional[str] = None
@@ -128,6 +131,7 @@ class MessageResponse(BaseModel):
 
 # New models for profile updates
 class UserProfileUpdate(BaseModel):
+    phone_number: Optional[str] = None
     first_name: Optional[str] = None
     age: Optional[int] = None
     gender: Optional[str] = None

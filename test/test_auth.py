@@ -22,6 +22,7 @@ def test_authentication():
     register_data = {
         "email": unique_email,
         "password": "testpassword123",
+        "phone_number": "1234567890",
         "first_name": "Test",
         "age": 25,
         "gender": "M",
