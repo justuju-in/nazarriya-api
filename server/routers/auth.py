@@ -6,8 +6,10 @@ from ..models import UserCreate, UserLogin, UserProfile, UserProfileUpdate, Toke
 from ..utils.auth import (
     get_password_hash, 
     authenticate_user, 
+    authenticate_user_by_email_or_phone,
     create_access_token,
     get_user_by_email,
+    get_user_by_phone,
     get_user_by_id,
     verify_token
 )
@@ -19,16 +21,25 @@ security = HTTPBearer()
 @router.post("/register", response_model=UserProfile)
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
     """Register a new user."""
-    logger.info(f"Registration attempt for email: {user.email}")
+    logger.info(f"Registration attempt for email: {user.email}, phone: {user.phone_number}")
     
     try:
-        # Check if user already exists
+        # Check if user already exists by email
         db_user = get_user_by_email(db, email=user.email)
         if db_user:
             logger.warning(f"Registration failed: Email {user.email} already exists")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
+            )
+        
+        # Check if user already exists by phone number
+        db_user = get_user_by_phone(db, phone_number=user.phone_number)
+        if db_user:
+            logger.warning(f"Registration failed: Phone number {user.phone_number} already exists")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Phone number already registered"
             )
         
         # Create new user
@@ -75,20 +86,20 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 @router.post("/login", response_model=Token)
 def login_user(user_credentials: UserLogin, db: Session = Depends(get_db)):
     """Login user and return JWT token."""
-    logger.info(f"Login attempt for email: {user_credentials.email}")
+    logger.info(f"Login attempt for email/phone: {user_credentials.email_or_phone}")
     
     try:
-        user = authenticate_user(db, user_credentials.email, user_credentials.password)
+        user = authenticate_user_by_email_or_phone(db, user_credentials.email_or_phone, user_credentials.password)
         if not user:
-            logger.warning(f"Login failed: Invalid credentials for {user_credentials.email}")
+            logger.warning(f"Login failed: Invalid credentials for {user_credentials.email_or_phone}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect email or password",
+                detail="Incorrect email/phone or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
         if not user.is_active:
-            logger.warning(f"Login failed: Inactive user {user_credentials.email}")
+            logger.warning(f"Login failed: Inactive user {user_credentials.email_or_phone}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Inactive user"
@@ -121,7 +132,7 @@ def login_user(user_credentials: UserLogin, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        log_error(e, "user_login", email=user_credentials.email)
+        log_error(e, "user_login", email=user_credentials.email_or_phone)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error during login"

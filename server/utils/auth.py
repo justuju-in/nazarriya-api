@@ -46,9 +46,37 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
         return None
     return user
 
+def authenticate_user_by_email_or_phone(db: Session, email_or_phone: str, password: str) -> Optional[User]:
+    """Authenticate user with email or phone number and password."""
+    # Try to find user by email first
+    user = db.query(User).filter(User.email == email_or_phone).first()
+    
+    # If not found by email, try by phone number
+    if not user:
+        user = db.query(User).filter(User.phone_number == email_or_phone).first()
+    
+    if not user:
+        return None
+    if not verify_password(password, user.hashed_password):
+        return None
+    return user
+
+def authenticate_user_by_phone(db: Session, phone_number: str, password: str) -> Optional[User]:
+    """Authenticate user with phone number and password."""
+    user = db.query(User).filter(User.phone_number == phone_number).first()
+    if not user:
+        return None
+    if not verify_password(password, user.hashed_password):
+        return None
+    return user
+
 def get_user_by_email(db: Session, email: str) -> Optional[User]:
     """Get user by email."""
     return db.query(User).filter(User.email == email).first()
+
+def get_user_by_phone(db: Session, phone_number: str) -> Optional[User]:
+    """Get user by phone number."""
+    return db.query(User).filter(User.phone_number == phone_number).first()
 
 def get_user_by_id(db: Session, user_id: str) -> Optional[User]:
     """Get user by ID."""

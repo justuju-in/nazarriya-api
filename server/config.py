@@ -13,6 +13,9 @@ class Settings:
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24 hours
     
+    # LLM Service settings
+    LLM_SERVICE_URL: str = os.getenv("LLM_SERVICE_URL", "http://localhost:8001")
+    
     # App settings
     APP_NAME: str = "NazarRiya Backend"
     DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"

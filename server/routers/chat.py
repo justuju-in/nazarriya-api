@@ -68,8 +68,9 @@ def chat_endpoint(
                     llm_history.append({"role": "assistant", "message": hist_msg.get("content", "")})
             
             # Call LLM service
+            from ..config import settings
             response = requests.post(
-                "http://localhost:8001/rag/query",
+                f"{settings.LLM_SERVICE_URL}/rag/query",
                 json={
                     "query": msg.message,
                     "history": llm_history,
