@@ -9,6 +9,7 @@ NazarRiya web server
       - [1. Environment Variables](#1-environment-variables)
       - [3. Run Docker Compose](#3-run-docker-compose)
       - [4. Test both the servers](#4-test-both-the-servers)
+      - [5. Redeployment after changes](#5-redeployment-after-changes)
     + [Setting up only the API server](#setting-up-only-the-api-server)
       - [1. Environment Variables](#1-environment-variables-1)
       - [2. Setup DB](#2-setup-db)
@@ -96,6 +97,22 @@ python test_service.py
 cd ../nazarriya-api
 python test/run_tests.py
 ```
+
+#### 5. Redeployment after changes
+a. First make sure you sync both backend repos to the latest code
+```
+cd ../nazarriya-llm
+git pull --rebase
+
+cd ../nazarriya-api
+git pull --rebase
+```
+b. Then bring down current Docker containers, rebuild and respawn
+```bash
+docker-compose down
+docker-compose up -d --build
+```
+c. Run the tests in step #4 again.
 
 ### Setting up only the API server
 
