@@ -7,6 +7,16 @@ import sys
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
+# Global counter for unique phone numbers
+_phone_counter = 0
+
+def _unique_phone_number():
+    """Generate a unique phone number for this test"""
+    global _phone_counter
+    _phone_counter += 1
+    # Use process ID + counter to ensure uniqueness
+    return f"1234567{os.getpid()}{_phone_counter}"
+
 def test_database_fields():
     """Test that the new fields exist in the database."""
     print("Testing Database Fields...")
@@ -42,16 +52,16 @@ def test_database_fields():
             SELECT column_name, data_type, is_nullable
             FROM information_schema.columns 
             WHERE table_name = 'users' 
-            AND column_name IN ('gender', 'preferred_bot')
+            AND column_name IN ('gender', 'preferred_bot', 'phone_number')
             ORDER BY column_name
         """)
         
         columns = cursor.fetchall()
-        expected_columns = {'gender', 'preferred_bot'}
+        expected_columns = {'gender', 'preferred_bot', 'phone_number'}
         found_columns = {col['column_name'] for col in columns}
         
         if expected_columns.issubset(found_columns):
-            print("✅ Both new columns exist!")
+            print("✅ All new columns exist!")
             for col in columns:
                 print(f"   - {col['column_name']}: {col['data_type']}, nullable: {col['is_nullable']}")
         else:
@@ -62,14 +72,15 @@ def test_database_fields():
         # Test 2: Check if we can insert data with the new fields
         print("\n2. Testing data insertion with new fields...")
         test_email = f"test_db_{int(os.getpid())}@example.com"
-        
+                
         cursor.execute("""
-            INSERT INTO users (id, email, hashed_password, first_name, age, gender, preferred_language, state, preferred_bot)
-            VALUES (gen_random_uuid(), %s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING id, email, gender, preferred_bot
+            INSERT INTO users (id, email, hashed_password, phone_number, first_name, age, gender, preferred_language, state, preferred_bot)
+            VALUES (gen_random_uuid(), %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, email, phone_number, gender, preferred_bot
         """, (
             test_email, 
             'hashed_password_123', 
+            _unique_phone_number(),
             'Test User', 
             30, 
             'F', 
@@ -82,13 +93,14 @@ def test_database_fields():
         print(f"✅ Data insertion successful!")
         print(f"   User ID: {inserted_user['id']}")
         print(f"   Email: {inserted_user['email']}")
+        print(f"   Phone Number: {inserted_user['phone_number']}")
         print(f"   Gender: {inserted_user['gender']}")
         print(f"   Preferred Bot: {inserted_user['preferred_bot']}")
         
         # Test 3: Check if we can query the new fields
         print("\n3. Testing data retrieval with new fields...")
         cursor.execute("""
-            SELECT id, email, first_name, age, gender, preferred_language, state, preferred_bot
+            SELECT id, email, phone_number, first_name, age, gender, preferred_language, state, preferred_bot
             FROM users 
             WHERE email = %s
         """, (test_email,))
@@ -96,6 +108,7 @@ def test_database_fields():
         retrieved_user = cursor.fetchone()
         if retrieved_user:
             print("✅ Data retrieval successful!")
+            print(f"   Retrieved phone_number: {retrieved_user['phone_number']}")
             print(f"   Retrieved gender: {retrieved_user['gender']}")
             print(f"   Retrieved preferred_bot: {retrieved_user['preferred_bot']}")
             
@@ -112,16 +125,13 @@ def test_database_fields():
         # Test 4: Test nullable behavior
         print("\n4. Testing nullable behavior...")
         cursor.execute("""
-            INSERT INTO users (id, email, hashed_password, first_name, age, preferred_language, state)
-            VALUES (gen_random_uuid(), %s, %s, %s, %s, %s, %s)
+            INSERT INTO users (id, email, hashed_password, phone_number)
+            VALUES (gen_random_uuid(), %s, %s, %s)
             RETURNING id, email, gender, preferred_bot
         """, (
             f"test_null_{int(os.getpid())}@example.com", 
             'hashed_password_123', 
-            'Null Test User', 
-            25, 
-            'English', 
-            'Test State'
+            _unique_phone_number()
         ))
         
         null_user = cursor.fetchone()

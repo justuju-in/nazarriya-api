@@ -36,6 +36,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
         db_user = User(
             email=user.email,
             hashed_password=hashed_password,
+            phone_number=user.phone_number,
             first_name=user.first_name,
             age=user.age,
             gender=user.gender,
@@ -53,6 +54,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
         return UserProfile(
             id=str(db_user.id),
             email=db_user.email,
+            phone_number=db_user.phone_number,
             first_name=db_user.first_name,
             age=db_user.age,
             gender=db_user.gender,
@@ -99,6 +101,7 @@ def login_user(user_credentials: UserLogin, db: Session = Depends(get_db)):
         user_profile = UserProfile(
             id=str(user.id),
             email=user.email,
+            phone_number=user.phone_number,
             first_name=user.first_name,
             age=user.age,
             gender=user.gender,
@@ -158,6 +161,7 @@ def get_current_user(
     return UserProfile(
         id=str(user.id),
         email=user.email,
+        phone_number=user.phone_number,
         first_name=user.first_name,
         age=user.age,
         gender=user.gender,
@@ -200,6 +204,8 @@ def update_user_profile(
         )
     
     # Update only the fields that are provided
+    if profile_update.phone_number is not None:
+        user.phone_number = profile_update.phone_number
     if profile_update.first_name is not None:
         user.first_name = profile_update.first_name
     if profile_update.age is not None:
@@ -221,6 +227,7 @@ def update_user_profile(
     return UserProfile(
         id=str(user.id),
         email=user.email,
+        phone_number=user.phone_number,
         first_name=user.first_name,
         age=user.age,
         gender=user.gender,
