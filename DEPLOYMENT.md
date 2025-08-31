@@ -68,7 +68,7 @@ su - nazarriya
 
 ```bash
 # Download and run the deployment script
-curl -O https://raw.githubusercontent.com/yourusername/nazarriya-api/main/deploy.sh
+curl -O https://raw.githubusercontent.com/justuju-in/nazarriya-api/main/deploy.sh
 chmod +x deploy.sh
 ./deploy.sh
 ```
@@ -109,11 +109,11 @@ CHUNK_OVERLAP=200
 MAX_TOKENS=1000
 ```
 
-### 5. Start Services
+### 5. Ingest documents
 
 ```bash
 cd /opt/nazarriya/nazarriya-api
-docker-compose up -d
+docker-compose exec nazarriya-llm bash -c "python ingest_documents.py data/pdfs/*.pdf data/html/*.html"
 ```
 
 ## Manual Deployment Steps
