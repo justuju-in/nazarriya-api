@@ -86,20 +86,31 @@ print_status "Creating application directory at $APP_DIR..."
 sudo mkdir -p $APP_DIR
 sudo chown $USER:$USER $APP_DIR
 
+# Set default GitHub username
+GITHUB_USERNAME="justuju-in"
+print_status "Using default GitHub username: $GITHUB_USERNAME"
+
+# Allow user to override if needed
+read -p "Press Enter to use '$GITHUB_USERNAME' or type a different username: " USER_INPUT
+if [ ! -z "$USER_INPUT" ]; then
+    GITHUB_USERNAME="$USER_INPUT"
+    print_status "Using custom GitHub username: $GITHUB_USERNAME"
+fi
+
 # Clone repositories (if not already present)
 if [ ! -d "$APP_DIR/nazarriya-api" ]; then
     print_status "Cloning nazarriya-api repository..."
-    git clone https://github.com/yourusername/nazarriya-api.git $APP_DIR/nazarriya-api
+    git clone https://github.com/$GITHUB_USERNAME/nazarriya-api.git $APP_DIR/nazarriya-api
 fi
 
 if [ ! -d "$APP_DIR/nazarriya-llm" ]; then
     print_status "Cloning nazarriya-llm repository..."
-    git clone https://github.com/yourusername/nazarriya-llm.git $APP_DIR/nazarriya-llm
+    git clone https://github.com/$GITHUB_USERNAME/nazarriya-llm.git $APP_DIR/nazarriya-llm
 fi
 
 # Set environment variables
 print_status "Setting up environment variables..."
-ENV_FILE="$APP_DIR/.env"
+ENV_FILE="$APP_DIR/nazarriya-api/.env"
 cat > $ENV_FILE << EOF
 # Database Configuration
 POSTGRES_PASSWORD=your_secure_password_here
@@ -128,12 +139,56 @@ read
 print_status "Building and starting Docker services..."
 cd $APP_DIR/nazarriya-api
 
-# Pull latest changes
+# Pull latest changes for both repositories
+print_status "Pulling latest changes for nazarriya-api..."
 git pull origin main
 
-# Build and start services
-print_status "Starting services with Docker Compose..."
-docker-compose up -d --build
+print_status "Pulling latest changes for nazarriya-llm..."
+cd ../nazarriya-llm
+git pull origin main
+cd ../nazarriya-api
+
+# Stop any existing services and force rebuild
+# This ensures we always use the latest code and prevents issues with outdated Docker images
+print_status "Stopping existing services and forcing rebuild..."
+docker-compose down
+
+# Start PostgreSQL first
+print_status "Starting PostgreSQL..."
+docker-compose up -d postgres
+
+# Wait for PostgreSQL to be ready
+print_status "Waiting for PostgreSQL to be ready..."
+sleep 20
+
+# Set up the database password properly
+print_status "Setting up database authentication..."
+POSTGRES_PASSWORD_VALUE=$(grep "^POSTGRES_PASSWORD=" $ENV_FILE | cut -d'=' -f2)
+if [ -z "$POSTGRES_PASSWORD_VALUE" ]; then
+    print_error "POSTGRES_PASSWORD not found in .env file"
+    exit 1
+fi
+
+# Create a temporary SQL script to set the password
+TEMP_SQL="/tmp/setup_postgres.sql"
+cat > $TEMP_SQL << EOF
+-- Set the password for the user
+ALTER USER nazarriya_user WITH PASSWORD '$POSTGRES_PASSWORD_VALUE';
+-- Ensure proper permissions
+GRANT ALL PRIVILEGES ON DATABASE nazarriya TO nazarriya_user;
+EOF
+
+# Apply the password fix
+print_status "Applying database password configuration..."
+docker-compose exec -T postgres psql -U nazarriya_user -d nazarriya < $TEMP_SQL
+
+# Clean up temporary file
+rm $TEMP_SQL
+
+# Now start the remaining services
+print_status "Starting remaining services with rebuild..."
+print_status "This will take a few minutes as Docker rebuilds the images with latest code..."
+docker-compose up -d --build nazarriya-api nazarriya-llm
 
 # Wait for services to be healthy
 print_status "Waiting for services to be healthy..."
@@ -152,6 +207,8 @@ print_status "Services are running on:"
 print_status "  - API Server: http://$(curl -s ifconfig.me):8000"
 print_status "  - LLM Service: http://$(curl -s ifconfig.me):8001"
 print_status "  - PostgreSQL: localhost:5432"
+print_status ""
+print_status "💡 Note: Services were automatically rebuilt with latest code to ensure all features are available"
 
 print_status "To view logs: docker-compose logs -f"
 print_status "To stop services: docker-compose down"
