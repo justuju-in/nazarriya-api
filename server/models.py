@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Boolean, JSON
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Boolean, JSON, LargeBinary
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -34,7 +34,8 @@ class ChatSession(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     title = Column(String(255), nullable=True)  # Auto-generated from first message
-    session_data = Column(JSONB, nullable=True)  # Store session context, preferences
+    encrypted_session_data = Column(LargeBinary, nullable=True)  # Encrypted session data
+    session_encryption_metadata = Column(JSONB, nullable=True)  # Encryption metadata (algorithm, key_id, etc.)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -48,7 +49,9 @@ class ChatMessage(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     session_id = Column(UUID(as_uuid=True), ForeignKey("chat_sessions.id"), nullable=False, index=True)
     sender_type = Column(String(20), nullable=False)  # 'user' or 'bot'
-    content = Column(Text, nullable=False)
+    encrypted_content = Column(LargeBinary, nullable=False)  # Encrypted message content
+    encryption_metadata = Column(JSONB, nullable=False)  # Encryption metadata (algorithm, key_id, etc.)
+    content_hash = Column(String(64), nullable=False)  # SHA-256 hash for integrity verification
     message_data = Column(JSONB, nullable=True)  # Store sources, context, etc.
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
@@ -88,12 +91,16 @@ class UserProfile(BaseModel):
     created_at: str
 
 class ChatMessageRequest(BaseModel):
-    message: str
+    encrypted_message: str  # Base64-encoded bytes
+    encryption_metadata: dict
+    content_hash: str
     session_id: Optional[str] = None
 
 class ChatResponse(BaseModel):
     session_id: str
-    response: str
+    encrypted_response: str  # Base64-encoded bytes
+    encryption_metadata: dict
+    content_hash: str
     sources: Optional[List[str]] = None
     response_data: Optional[dict] = None
 
@@ -101,7 +108,9 @@ class ChatMessageResponse(BaseModel):
     id: str
     session_id: str
     sender_type: str
-    content: str
+    encrypted_content: bytes  # Encrypted message content
+    encryption_metadata: dict  # Encryption metadata
+    content_hash: str  # Content integrity hash
     message_data: Optional[dict] = None
     created_at: str
 
