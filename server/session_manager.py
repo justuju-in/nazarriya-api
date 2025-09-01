@@ -1,10 +1,10 @@
-import uuid
+import hashlib
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from .models import ChatSession, ChatMessage, User
-from .database import get_db
-from typing import List, Optional
+from .models import ChatSession, ChatMessage
+from typing import List, Optional, Dict, Any
 from sqlalchemy.sql import func
+from datetime import datetime
 
 def create_session(user_id: str, db: Session, title: Optional[str] = None) -> str:
     """Create a new chat session for a user."""
@@ -21,8 +21,8 @@ def create_session(user_id: str, db: Session, title: Optional[str] = None) -> st
     db.refresh(session)
     return str(session.id)
 
-def add_message(session_id: str, sender: str, text: str, db: Session, user_id: str, message_data: Optional[dict] = None):
-    """Add a message to a chat session with user verification."""
+def add_message(session_id: str, sender: str, encrypted_content: bytes, encryption_metadata: Dict[str, Any], content_hash: str, db: Session, user_id: str, message_data: Optional[dict] = None):
+    """Add an encrypted message to a chat session with user verification."""
     # Verify the session belongs to the user
     session = db.query(ChatSession).filter(
         and_(
@@ -34,26 +34,33 @@ def add_message(session_id: str, sender: str, text: str, db: Session, user_id: s
     if not session:
         raise ValueError("Session not found or access denied")
     
+    # Verify content hash for integrity
+    if not _verify_content_hash(encrypted_content, content_hash):
+        raise ValueError("Content hash verification failed")
+    
     message = ChatMessage(
         session_id=session_id,
         sender_type=sender,
-        content=text,
+        encrypted_content=encrypted_content,
+        encryption_metadata=encryption_metadata,
+        content_hash=content_hash,
         message_data=message_data
     )
     db.add(message)
     
     # Update session title if this is the first user message
-    if sender == "user" and not session.title or session.title == "New Chat Session":
-        # Use first 50 characters of message as title
-        session.title = text[:50] + "..." if len(text) > 50 else text
-        session.updated_at = func.now()
+    if sender == "user" and (not session.title or session.title == "New Chat Session"):
+        # For encrypted messages, we can't generate title from content
+        # Use a generic title or let the client provide one
+        session.title = "Encrypted Chat Session"
+        session.updated_at = datetime.utcnow()
     
     db.commit()
     db.refresh(message)
     return message
 
 def get_history(session_id: str, db: Session, user_id: str) -> List[dict]:
-    """Get chat history for a session with user verification."""
+    """Get encrypted chat history for a session with user verification."""
     # Verify the session belongs to the user
     session = db.query(ChatSession).filter(
         and_(
@@ -69,12 +76,15 @@ def get_history(session_id: str, db: Session, user_id: str) -> List[dict]:
         ChatMessage.session_id == session_id
     ).order_by(ChatMessage.created_at).all()
     
+    import base64
     return [
         {
             "id": str(msg.id),
             "session_id": str(msg.session_id),
             "sender_type": msg.sender_type,
-            "content": msg.content,
+            "encrypted_content": base64.b64encode(msg.encrypted_content).decode('utf-8'),
+            "encryption_metadata": msg.encryption_metadata,
+            "content_hash": msg.content_hash,
             "message_data": msg.message_data,
             "created_at": msg.created_at.isoformat() if msg.created_at else None
         } 
@@ -85,16 +95,17 @@ def get_user_sessions(user_id: str, db: Session, limit: int = 50, offset: int = 
     """Get all chat sessions for a user with pagination."""
     try:
         # Convert string user_id to UUID if needed
-        import uuid
+        import uuid as uuid_module
         try:
-            user_uuid = uuid.UUID(user_id)
-        except ValueError:
-            raise ValueError(f"Invalid UUID format: {user_id}")
+            user_uuid = uuid_module.UUID(user_id)
+        except ValueError as exc:
+            raise ValueError(f"Invalid UUID format: {user_id}") from exc
         
         # Use a subquery to count messages for each session
+        from sqlalchemy import func as sql_func
         sessions_with_count = db.query(
             ChatSession,
-            func.count(ChatMessage.id).label('message_count')
+            sql_func.count(ChatMessage.id).label('message_count')
         ).outerjoin(
             ChatMessage, ChatSession.id == ChatMessage.session_id
         ).filter(
@@ -118,7 +129,7 @@ def get_user_sessions(user_id: str, db: Session, limit: int = 50, offset: int = 
         
         return result
         
-    except Exception as e:
+    except Exception:
         raise
 
 def get_session_by_id(session_id: str, user_id: str, db: Session) -> Optional[ChatSession]:
@@ -161,6 +172,66 @@ def update_session_title(session_id: str, user_id: str, title: str, db: Session)
         return False
     
     session.title = title
+    session.updated_at = datetime.utcnow()
+    db.commit()
+    return True
+
+
+
+def _verify_content_hash(encrypted_content: bytes, content_hash: str) -> bool:
+    """Verify the SHA-256 hash of encrypted content."""
+    if not encrypted_content or not content_hash:
+        return False
+    
+    calculated_hash = hashlib.sha256(encrypted_content).hexdigest()
+    
+    # Debug logging
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Hash verification - Expected: {content_hash}")
+    logger.info(f"Hash verification - Calculated: {calculated_hash}")
+    logger.info(f"Hash verification - Match: {calculated_hash == content_hash}")
+    logger.info(f"Hash verification - Content length: {len(encrypted_content)}")
+    
+    return calculated_hash == content_hash
+
+def add_encrypted_session_data(
+    session_id: str, 
+    user_id: str, 
+    encrypted_data: bytes, 
+    encryption_metadata: Dict[str, Any],
+    db: Session
+) -> bool:
+    """Add encrypted session data with user verification."""
+    session = db.query(ChatSession).filter(
+        and_(
+            ChatSession.id == session_id,
+            ChatSession.user_id == user_id
+        )
+    ).first()
+    
+    if not session:
+        return False
+    
+    session.encrypted_session_data = encrypted_data
+    session.session_encryption_metadata = encryption_metadata
     session.updated_at = func.now()
     db.commit()
     return True
+
+def get_encrypted_session_data(session_id: str, user_id: str, db: Session) -> Optional[Dict[str, Any]]:
+    """Get encrypted session data with user verification."""
+    session = db.query(ChatSession).filter(
+        and_(
+            ChatSession.id == session_id,
+            ChatSession.user_id == user_id
+        )
+    ).first()
+    
+    if not session:
+        return None
+    
+    return {
+        "encrypted_session_data": session.encrypted_session_data,
+        "session_encryption_metadata": session.session_encryption_metadata
+    }

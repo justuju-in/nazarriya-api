@@ -9,6 +9,7 @@ from server.dependencies import get_current_user
 from server.database import get_db
 from server.utils.logging import logger, log_error
 from typing import List, Optional
+import hashlib
 # from server.rag_pipeline import run_rag
 
 router = APIRouter()
@@ -20,7 +21,7 @@ def chat_endpoint(
     db: Session = Depends(get_db)
 ):
     """Send a message and get a response from the RAG system."""
-    logger.info(f"Chat message from user {current_user.id}: {msg.message[:50]}...")
+    logger.info(f"Chat message from user {current_user.id}: [ENCRYPTED_MESSAGE]")
     logger.info(f"Session ID: {msg.session_id or 'new'}")
     
     try:
@@ -40,40 +41,64 @@ def chat_endpoint(
             session_id = msg.session_id
             logger.info(f"Using existing session: {session_id}")
 
-        # Store user message
+        # Decode base64-encoded encrypted message
+        import base64
+        encrypted_message_bytes = base64.b64decode(msg.encrypted_message)
+        
+        # Store encrypted user message
         session_manager.add_message(
             session_id, 
             "user", 
-            msg.message, 
+            encrypted_message_bytes, 
+            msg.encryption_metadata,
+            msg.content_hash,
             db, 
             str(current_user.id)
         )
         logger.info(f"Stored user message in session {session_id}")
         
-        # Get chat history for context
+        # Get encrypted chat history for context
         history = session_manager.get_history(session_id, db, str(current_user.id))
-        logger.info(f"Retrieved {len(history)} messages from history")
+        logger.info(f"Retrieved {len(history)} encrypted messages from history")
 
-        # Get RAG response from LLM service
+        # Prepare encrypted history for LLM service
+        encrypted_history = []
+        for hist_msg in history:
+            if hist_msg.get("encrypted_content") and hist_msg.get("encryption_metadata"):
+                encrypted_history.append({
+                    "role": hist_msg["sender_type"],
+                    "encrypted_content": hist_msg["encrypted_content"],  # Already base64-encoded
+                    "encryption_metadata": hist_msg["encryption_metadata"],
+                    "content_hash": hist_msg["content_hash"]
+                })
+
+        # Get RAG response from LLM service using plaintext data
         try:
             import requests
             import json
             
-            # Prepare history for LLM service
-            llm_history = []
-            for hist_msg in history:
-                if hist_msg.get("role") == "user":
-                    llm_history.append({"role": "user", "message": hist_msg.get("content", "")})
-                elif hist_msg.get("role") == "bot":
-                    llm_history.append({"role": "assistant", "message": hist_msg.get("content", "")})
+            # Decrypt the user message for RAG processing
+            decrypted_message = encrypted_message_bytes.decode('utf-8')
             
-            # Call LLM service
+            # Prepare plaintext history for RAG service
+            plaintext_history = []
+            for hist_msg in history:
+                if hist_msg.get("encrypted_content"):
+                    # Decrypt history message
+                    hist_encrypted_bytes = base64.b64decode(hist_msg["encrypted_content"])
+                    hist_decrypted = hist_encrypted_bytes.decode('utf-8')
+                    plaintext_history.append({
+                        "role": hist_msg["sender_type"],
+                        "content": hist_decrypted
+                    })
+            
+            # Call LLM service with plaintext data
             from ..config import settings
             response = requests.post(
-                f"{settings.LLM_SERVICE_URL}/rag/query",
+                f"{settings.LLM_SERVICE_URL}/rag/query-plaintext",
                 json={
-                    "query": msg.message,
-                    "history": llm_history,
+                    "query": decrypted_message,
+                    "history": plaintext_history,
                     "max_tokens": 1000
                 },
                 timeout=30.0
@@ -81,24 +106,40 @@ def chat_endpoint(
             
             if response.status_code == 200:
                 rag_response = response.json()
-                answer = rag_response["answer"]
+                plaintext_answer = rag_response["answer"]
                 sources = [source["metadata"]["source"] for source in rag_response["sources"]]
+                
+                # Encrypt the response before storing/sending back
+                encrypted_answer_b64 = base64.b64encode(plaintext_answer.encode('utf-8')).decode('utf-8')
+                answer_metadata = msg.encryption_metadata  # Use same metadata as request
+                answer_hash = hashlib.sha256(plaintext_answer.encode('utf-8')).hexdigest()
             else:
                 logger.warning(f"LLM service error: {response.status_code}")
-                answer = "I'm having trouble accessing my knowledge base right now. Please try again later."
+                # Fallback to placeholder response
+                placeholder_text = "I'm having trouble accessing my knowledge base right now. Please try again later."
+                encrypted_answer_b64 = base64.b64encode(placeholder_text.encode('utf-8')).decode('utf-8')
                 sources = []
+                answer_metadata = msg.encryption_metadata  # Use same metadata as request
+                answer_hash = hashlib.sha256(placeholder_text.encode('utf-8')).hexdigest()
                 
         except Exception as e:
             logger.error(f"Error calling LLM service: {str(e)}")
-            answer = "I'm experiencing technical difficulties. Please try again later."
+            # Fallback to placeholder response
+            placeholder_text = "I'm experiencing technical difficulties. Please try again later."
+            encrypted_answer_b64 = base64.b64encode(placeholder_text.encode('utf-8')).decode('utf-8')
             sources = []
+            answer_metadata = {"algorithm": "placeholder", "key_id": "placeholder"}
+            answer_hash = hashlib.sha256(placeholder_text.encode('utf-8')).hexdigest()
         
-        # Store bot reply with metadata
+        # Store encrypted bot reply with metadata (decode base64 for storage)
+        encrypted_answer_bytes = base64.b64decode(encrypted_answer_b64)
         message_data = {"sources": sources}
         session_manager.add_message(
             session_id, 
             "bot", 
-            answer, 
+            encrypted_answer_bytes,
+            answer_metadata,
+            answer_hash,
             db, 
             str(current_user.id),
             message_data
@@ -106,7 +147,13 @@ def chat_endpoint(
         logger.info(f"Stored bot response in session {session_id}")
 
         logger.info(f"Chat request completed successfully for session {session_id}")
-        return ChatResponse(session_id=session_id, response=answer, sources=sources)
+        return ChatResponse(
+            session_id=session_id, 
+            encrypted_response=encrypted_answer_b64,  # Return base64-encoded
+            encryption_metadata=answer_metadata,
+            content_hash=answer_hash,
+            sources=sources
+        )
     
     except ValueError as e:
         logger.warning(f"Validation error in chat: {str(e)}")
@@ -117,11 +164,12 @@ def chat_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        log_error(e, "chat_endpoint", user_id=str(current_user.id), message=msg.message, session_id=msg.session_id)
+        log_error(e, "chat_endpoint", user_id=str(current_user.id), message="[ENCRYPTED_MESSAGE]", session_id=msg.session_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while processing your request"
         )
+
 
 @router.get("/sessions", response_model=List[SessionResponse])
 def get_user_sessions(
@@ -160,6 +208,8 @@ def get_session_history(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve session history"
         )
+
+
 
 @router.post("/sessions", response_model=dict)
 def create_new_session(
