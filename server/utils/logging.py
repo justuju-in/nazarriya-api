@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 
 class LoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        # Skip logging for health checks and other noise
+        if self._should_skip_logging(request):
+            return await call_next(request)
+        
         # Log request details
         start_time = time.time()
         
@@ -75,6 +79,20 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             logger.info(f"Response Body: {response_body}")
         
         return response
+    
+    def _should_skip_logging(self, request: Request) -> bool:
+        """Determine if we should skip logging for this request."""
+        # Skip health checks
+        if (request.method == "GET" and 
+            request.url.path == "/" and 
+            "curl" in request.headers.get("user-agent", "").lower()):
+            return True
+        
+        # Skip other common health check patterns
+        if request.url.path in ["/health", "/ping", "/status"]:
+            return True
+            
+        return False
 
 def log_api_call(func_name: str, **kwargs):
     """Decorator to log API function calls with parameters"""

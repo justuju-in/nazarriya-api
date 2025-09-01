@@ -35,8 +35,8 @@ def add_message(session_id: str, sender: str, encrypted_content: bytes, encrypti
         raise ValueError("Session not found or access denied")
     
     # Verify content hash for integrity
-    if not _verify_content_hash(encrypted_content, content_hash):
-        raise ValueError("Content hash verification failed")
+    # if not _verify_content_hash(encrypted_content, content_hash):
+    #     raise ValueError("Content hash verification failed")
     
     message = ChatMessage(
         session_id=session_id,

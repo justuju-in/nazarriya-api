@@ -8,6 +8,7 @@ from server import session_manager
 from server.dependencies import get_current_user
 from server.database import get_db
 from server.utils.logging import logger, log_error
+from server.utils.encryption import encrypt_message, decrypt_message
 from typing import List, Optional
 import hashlib
 # from server.rag_pipeline import run_rag
@@ -78,15 +79,15 @@ def chat_endpoint(
             import json
             
             # Decrypt the user message for RAG processing
-            decrypted_message = encrypted_message_bytes.decode('utf-8')
+            decrypted_message = decrypt_message(encrypted_message_bytes, msg.encryption_metadata)
             
             # Prepare plaintext history for RAG service
             plaintext_history = []
             for hist_msg in history:
-                if hist_msg.get("encrypted_content"):
+                if hist_msg.get("encrypted_content") and hist_msg.get("encryption_metadata"):
                     # Decrypt history message
                     hist_encrypted_bytes = base64.b64decode(hist_msg["encrypted_content"])
-                    hist_decrypted = hist_encrypted_bytes.decode('utf-8')
+                    hist_decrypted = decrypt_message(hist_encrypted_bytes, hist_msg["encryption_metadata"])
                     plaintext_history.append({
                         "role": hist_msg["sender_type"],
                         "content": hist_decrypted
@@ -109,26 +110,26 @@ def chat_endpoint(
                 plaintext_answer = rag_response["answer"]
                 sources = [source["metadata"]["source"] for source in rag_response["sources"]]
                 
-                # Encrypt the response before storing/sending back
-                encrypted_answer_b64 = base64.b64encode(plaintext_answer.encode('utf-8')).decode('utf-8')
-                answer_metadata = msg.encryption_metadata  # Use same metadata as request
+                # Actually encrypt the response using AES-GCM
+                encrypted_answer, answer_metadata = encrypt_message(plaintext_answer, msg.encryption_metadata)
+                encrypted_answer_b64 = base64.b64encode(encrypted_answer).decode('utf-8')
                 answer_hash = hashlib.sha256(plaintext_answer.encode('utf-8')).hexdigest()
             else:
                 logger.warning(f"LLM service error: {response.status_code}")
                 # Fallback to placeholder response
                 placeholder_text = "I'm having trouble accessing my knowledge base right now. Please try again later."
-                encrypted_answer_b64 = base64.b64encode(placeholder_text.encode('utf-8')).decode('utf-8')
+                encrypted_answer, answer_metadata = encrypt_message(placeholder_text, msg.encryption_metadata)
+                encrypted_answer_b64 = base64.b64encode(encrypted_answer).decode('utf-8')
                 sources = []
-                answer_metadata = msg.encryption_metadata  # Use same metadata as request
                 answer_hash = hashlib.sha256(placeholder_text.encode('utf-8')).hexdigest()
                 
         except Exception as e:
             logger.error(f"Error calling LLM service: {str(e)}")
             # Fallback to placeholder response
             placeholder_text = "I'm experiencing technical difficulties. Please try again later."
-            encrypted_answer_b64 = base64.b64encode(placeholder_text.encode('utf-8')).decode('utf-8')
+            encrypted_answer, answer_metadata = encrypt_message(placeholder_text, msg.encryption_metadata)
+            encrypted_answer_b64 = base64.b64encode(encrypted_answer).decode('utf-8')
             sources = []
-            answer_metadata = {"algorithm": "placeholder", "key_id": "placeholder"}
             answer_hash = hashlib.sha256(placeholder_text.encode('utf-8')).hexdigest()
         
         # Store encrypted bot reply with metadata (decode base64 for storage)
