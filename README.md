@@ -25,11 +25,11 @@ NazarRiya web server
   * [Get Session History](#get-session-history)
   * [Update Session Title](#update-session-title)
   * [Delete Session](#delete-session)
-- [🏗️ Architecture](#----architecture)
+- [🏗️ Architecture](#architecture)
   * [File Structure](#file-structure)
   * [Authentication Flow](#authentication-flow)
   * [Security Implementation](#security-implementation)
-- [🔧 Configuration](#---configuration)
+- [🔧 Configuration](#configuration)
   * [JWT Settings](#jwt-settings)
   * [Database Integration](#database-integration)
   * [Production Checklist](#production-checklist)
@@ -161,10 +161,13 @@ curl -X POST "http://localhost:8000/auth/register" \
   -d '{
     "email": "user@example.com",
     "password": "securepassword123",
+    "phone_number": "+1234567890",
     "first_name": "John",
     "age": 30,
+    "gender": "M",
     "preferred_language": "English",
-    "state": "California"
+    "state": "California",
+    "preferred_bot": "N"
   }'
 ```
 
@@ -173,20 +176,34 @@ curl -X POST "http://localhost:8000/auth/register" \
 {
   "id": "uuid-here",
   "email": "user@example.com",
+  "phone_number": "+1234567890",
   "first_name": "John",
   "age": 30,
+  "gender": "M",
   "preferred_language": "English",
   "state": "California",
+  "preferred_bot": "N",
   "created_at": "2024-01-01T00:00:00"
 }
 ```
 
 ## User Login
+Login supports both email and phone number:
 ```bash
 curl -X POST "http://localhost:8000/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "user@example.com",
+    "email_or_phone": "user@example.com",
+    "password": "securepassword123"
+  }'
+```
+
+Or login with phone number:
+```bash
+curl -X POST "http://localhost:8000/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email_or_phone": "+1234567890",
     "password": "securepassword123"
   }'
 ```
@@ -199,10 +216,13 @@ curl -X POST "http://localhost:8000/auth/login" \
   "user": {
     "id": "uuid-here",
     "email": "user@example.com",
+    "phone_number": "+1234567890",
     "first_name": "John",
     "age": 30,
+    "gender": "M",
     "preferred_language": "English",
     "state": "California",
+    "preferred_bot": "N",
     "created_at": "2024-01-01T00:00:00"
   }
 }
@@ -214,37 +234,101 @@ curl -X GET "http://localhost:8000/auth/me" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE"
 ```
 
+## Update User Profile
+```bash
+curl -X PUT "http://localhost:8000/auth/profile" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "first_name": "John Updated",
+    "age": 31,
+    "preferred_language": "Spanish",
+    "state": "New York"
+  }'
+```
+
 ## Create a New Chat Session
 ```bash
-curl -X POST "http://localhost:8000/chat/sessions" \
+curl -X POST "http://localhost:8000/api/sessions" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"title": "My New Chat"}'
 ```
 
-## Send a Chat Message
+## Send an Encrypted Chat Message
+**Note**: All chat messages are end-to-end encrypted. The client must encrypt the message before sending.
+
 ```bash
-curl -X POST "http://localhost:8000/chat/chat" \
+curl -X POST "http://localhost:8000/api/chat" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"message": "Hello, how are you?", "session_id": "SESSION_UUID"}'
+  -d '{
+    "encrypted_message": "base64_encoded_encrypted_message",
+    "encryption_metadata": {
+      "algorithm": "AES-GCM",
+      "key_id": "user_key_id",
+      "nonce": "base64_encoded_nonce"
+    },
+    "content_hash": "sha256_hash_of_original_message",
+    "session_id": "SESSION_UUID"
+  }'
+```
+
+**Response:**
+```json
+{
+  "session_id": "SESSION_UUID",
+  "encrypted_response": "base64_encoded_encrypted_response",
+  "encryption_metadata": {
+    "algorithm": "AES-GCM",
+    "key_id": "user_key_id",
+    "nonce": "base64_encoded_nonce"
+  },
+  "content_hash": "sha256_hash_of_original_response",
+  "sources": ["source1.pdf", "source2.html"],
+  "response_data": {
+    "sources": ["source1.pdf", "source2.html"]
+  }
+}
 ```
 
 ## Get User Sessions
 ```bash
-curl -X GET "http://localhost:8000/chat/sessions?limit=10&offset=0" \
+curl -X GET "http://localhost:8000/api/sessions?limit=10&offset=0" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
 ## Get Session History
 ```bash
-curl -X GET "http://localhost:8000/chat/sessions/SESSION_UUID/history" \
+curl -X GET "http://localhost:8000/api/sessions/SESSION_UUID/history" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response:**
+```json
+{
+  "session_id": "SESSION_UUID",
+  "history": [
+    {
+      "id": "message_uuid",
+      "sender_type": "user",
+      "encrypted_content": "base64_encoded_encrypted_content",
+      "encryption_metadata": {
+        "algorithm": "AES-GCM",
+        "key_id": "user_key_id",
+        "nonce": "base64_encoded_nonce"
+      },
+      "content_hash": "sha256_hash",
+      "message_data": null,
+      "created_at": "2024-01-01T00:00:00"
+    }
+  ]
+}
 ```
 
 ## Update Session Title
 ```bash
-curl -X PUT "http://localhost:8000/chat/sessions/SESSION_UUID/title" \
+curl -X PUT "http://localhost:8000/api/sessions/SESSION_UUID/title" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"title": "Updated Title"}'
@@ -252,9 +336,30 @@ curl -X PUT "http://localhost:8000/chat/sessions/SESSION_UUID/title" \
 
 ## Delete Session
 ```bash
-curl -X DELETE "http://localhost:8000/chat/sessions/SESSION_UUID" \
+curl -X DELETE "http://localhost:8000/api/sessions/SESSION_UUID" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
+
+## Security Notes
+
+### End-to-End Encryption
+- All chat messages are encrypted using AES-GCM encryption
+- Each message includes encryption metadata (algorithm, key_id, nonce)
+- Content integrity is verified using SHA-256 hashes
+- Messages are stored encrypted in the database
+- Only the client can decrypt messages using their private key
+
+### Authentication
+- Passwords are hashed using bcrypt with salt
+- JWT tokens are used for session management
+- Login supports both email and phone number
+- All protected endpoints require valid JWT token in Authorization header
+
+### Data Privacy
+- User data is stored securely in PostgreSQL
+- Chat sessions are isolated per user
+- No plaintext messages are stored in the database
+- All sensitive operations are logged with sanitized data
 
 # 🏗️ Architecture
 
@@ -262,56 +367,165 @@ curl -X DELETE "http://localhost:8000/chat/sessions/SESSION_UUID" \
 ```
 server/
 ├── main.py              # FastAPI application entry point
-├── config.py            # Configuration settings
+├── config.py            # Configuration settings and environment variables
 ├── database.py          # Database connection and session management
 ├── models.py            # SQLAlchemy models and Pydantic schemas
 ├── dependencies.py      # Authentication dependencies
+├── init_db.py           # Database initialization
+├── rag_pipeline.py      # RAG pipeline for LLM integration
+├── session_manager.py   # Chat session management
 ├── utils/
-│   └── auth.py         # JWT and password utilities
-├── routers/
-│   ├── auth.py         # Authentication endpoints
-│   └── chat.py         # Protected chat endpoints
-└── session_manager.py   # Chat session management
+│   ├── auth.py         # JWT and password utilities
+│   ├── encryption.py   # End-to-end encryption utilities
+│   ├── logging.py      # Logging middleware and utilities
+│   ├── embeddings.py   # Vector embeddings utilities
+│   ├── persona.py      # Bot persona management
+│   └── vector_store.py # Vector database operations
+└── routers/
+    ├── auth.py         # Authentication endpoints (/auth)
+    └── chat.py         # Protected chat endpoints (/api)
 ```
 
 ## Authentication Flow
-1. **Registration**: User creates account → Password hashed → User stored in DB
-2. **Login**: User provides credentials → Password verified → JWT token generated
+1. **Registration**: User creates account → Password hashed with bcrypt → User stored in DB
+2. **Login**: User provides email/phone + password → Credentials verified → JWT token generated
 3. **Protected Access**: Token included in request → Token validated → User authenticated
 4. **Session Management**: User ID extracted from token → Chat sessions created/accessed
+5. **Profile Management**: User can update profile information via authenticated endpoints
 
 ## Security Implementation
-- **Password Hashing**: bcrypt with salt
-- **JWT Tokens**: HS256 algorithm, configurable expiration
-- **Route Protection**: Dependency injection for authentication
-- **Database Sessions**: Secure session management with PostgreSQL
+
+### End-to-End Encryption
+- **AES-GCM Encryption**: All chat messages encrypted using AES-GCM algorithm
+- **Key Management**: Encryption keys managed client-side with metadata tracking
+- **Content Integrity**: SHA-256 hashes verify message integrity
+- **Metadata Storage**: Encryption parameters (algorithm, key_id, nonce) stored with messages
+
+### Authentication & Authorization
+- **Password Security**: bcrypt hashing with salt for password storage
+- **JWT Tokens**: HS256 algorithm with configurable expiration (default 24 hours)
+- **Route Protection**: Dependency injection for authentication on protected endpoints
+- **Session Isolation**: Users can only access their own chat sessions and data
+
+### Data Privacy
+- **Encrypted Storage**: All chat messages stored encrypted in database
+- **No Plaintext**: Server never stores unencrypted message content
+- **Secure Logging**: Sensitive data sanitized in logs
+- **Database Security**: PostgreSQL with connection pooling and health checks
+
+### API Security
+- **Input Validation**: Pydantic models validate all request data
+- **Error Handling**: Secure error responses without information leakage
+- **Rate Limiting**: Built-in FastAPI rate limiting capabilities
+- **CORS Protection**: Configurable CORS settings for cross-origin requests
 
 # 🔧 Configuration
 
+## Environment Variables
+
+### Required Variables
+```bash
+# Database Configuration
+export DATABASE_URL="postgresql://postgres:password@localhost:5432/nazarriya"
+
+# JWT Security (REQUIRED - Change in production!)
+export SECRET_KEY="your-very-long-random-secret-key-here"
+export ACCESS_TOKEN_EXPIRE_MINUTES="1440"  # 24 hours
+
+# LLM Service Configuration
+export LLM_SERVICE_URL="http://localhost:8001"
+
+# Application Settings
+export DEBUG="False"  # Set to "True" for development
+```
+
+### Optional Variables
+```bash
+# OpenAI Configuration (for LLM service)
+export OPENAI_API_KEY="your_openai_api_key"
+export OPENAI_MODEL="gpt-3.5-turbo"
+export OPENAI_EMBEDDING_MODEL="text-embedding-ada-002"
+
+# Database Configuration
+export POSTGRES_PASSWORD="your_secure_password_here"
+
+# RAG Pipeline Settings
+export CHUNK_SIZE="1000"
+export CHUNK_OVERLAP="200"
+export MAX_TOKENS="1000"
+```
+
 ## JWT Settings
 - **Algorithm**: HS256 (HMAC with SHA-256)
-- **Expiration**: 30 minutes (configurable)
-- **Secret Key**: Environment variable (change in production)
+- **Expiration**: 24 hours (1440 minutes) - configurable via `ACCESS_TOKEN_EXPIRE_MINUTES`
+- **Secret Key**: Must be set via `SECRET_KEY` environment variable
+- **Token Type**: Bearer token in Authorization header
 
 ## Database Integration
-- **ORM**: SQLAlchemy 2.0
-- **Database**: PostgreSQL
-- **Connection Pooling**: Enabled with health checks
-- **Migrations**: Alembic support
+- **ORM**: SQLAlchemy 2.0 with async support
+- **Database**: PostgreSQL with UUID primary keys
+- **Connection Pooling**: Enabled with pre-ping verification
+- **Connection Recycling**: Every 5 minutes (300 seconds)
+- **Migrations**: Alembic support with version control
+- **Data Types**: JSONB for metadata, LargeBinary for encrypted content
+
+## Encryption Configuration
+- **Algorithm**: AES-GCM for end-to-end encryption
+- **Key Management**: Client-side key generation and management
+- **Nonce Generation**: 12-byte random nonces for each message
+- **Hash Algorithm**: SHA-256 for content integrity verification
+- **Metadata Storage**: JSONB fields for encryption parameters
+
+## LLM Service Integration
+- **Service URL**: Configurable via `LLM_SERVICE_URL` (default: http://localhost:8001)
+- **Communication**: HTTP REST API with JSON payloads
+- **Timeout**: 30 seconds for LLM service requests
+- **Fallback**: Graceful degradation with placeholder responses
+- **RAG Pipeline**: Integration with vector store and document retrieval
 
 ## Production Checklist
-- [ ] Change `SECRET_KEY` environment variable to strong random value
-- [ ] Set `DEBUG=False` environment variable
-- [ ] Use HTTPS in production
-- [ ] Implement rate limiting
-- [ ] Add comprehensive logging
-- [ ] Regular security audits
+- [ ] Change `SECRET_KEY` to strong random value (32+ characters)
+- [ ] Set `DEBUG="False"` environment variable
+- [ ] Use HTTPS in production with valid SSL certificates
+- [ ] Configure proper CORS settings for your domain
+- [ ] Set up database connection pooling limits
+- [ ] Implement rate limiting and DDoS protection
+- [ ] Configure comprehensive logging and monitoring
+- [ ] Set up database backups and disaster recovery
+- [ ] Regular security audits and dependency updates
+- [ ] Configure proper firewall rules
+- [ ] Set up health check endpoints
+- [ ] Implement proper error handling and alerting
 
-## Best Practices
-- Tokens expire automatically
-- Passwords are never stored in plain text
-- User sessions are isolated
-- Database connections are pooled and secured
+## Security Best Practices
+- **Token Management**: Tokens expire automatically, no server-side storage
+- **Password Security**: Passwords never stored in plain text, bcrypt hashing
+- **Data Isolation**: User sessions and data completely isolated
+- **Encrypted Communication**: All chat messages end-to-end encrypted
+- **Secure Logging**: Sensitive data sanitized in all logs
+- **Input Validation**: All inputs validated using Pydantic models
+- **Error Handling**: Secure error responses without information leakage
+
+## Development vs Production
+
+### Development Mode
+```bash
+export DEBUG="True"
+export ACCESS_TOKEN_EXPIRE_MINUTES="1440"  # 24 hours for convenience
+```
+
+### Production Mode
+```bash
+export DEBUG="False"
+export ACCESS_TOKEN_EXPIRE_MINUTES="30"    # 30 minutes for security
+export SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+```
 
 ## Debug Mode
-Set `export DEBUG="True"` in your environment for detailed error messages and auto-reload.
+Set `export DEBUG="True"` in your environment for:
+- Detailed error messages and stack traces
+- Auto-reload on code changes
+- Enhanced logging output
+- Development-friendly error responses
+
+**Warning**: Never use debug mode in production as it exposes sensitive information.
