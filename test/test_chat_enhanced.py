@@ -7,12 +7,18 @@ This script tests the new session management features.
 import requests
 import json
 import time
+import hashlib
+import base64
 from typing import Dict, Any
 
 # Configuration
 BASE_URL = "http://localhost:8000"
-TEST_EMAIL = "test@example.com"
+
+# Generate unique test user credentials
+timestamp = int(time.time())
+TEST_EMAIL = f"test_chat_{timestamp}@example.com"
 TEST_PASSWORD = "testpassword123"
+TEST_PHONE = f"123456{timestamp % 10000:04d}"
 
 class ChatTester:
     def __init__(self, base_url: str):
@@ -22,6 +28,29 @@ class ChatTester:
         self.user_id = None
         self.created_sessions = []  # Track created sessions for cleanup
     
+    def register_user(self, email: str, password: str, phone: str) -> bool:
+        """Register a new test user."""
+        try:
+            response = self.session.post(
+                f"{self.base_url}/auth/register",
+                json={
+                    "email": email,
+                    "password": password,
+                    "phone_number": phone,
+                    "full_name": "Test User"
+                }
+            )
+            
+            if response.status_code == 200:
+                print(f"✅ User registered: {email}")
+                return True
+            else:
+                print(f"❌ Registration failed: {response.status_code} - {response.text}")
+                return False
+        except Exception as e:
+            print(f"❌ Registration error: {e}")
+            return False
+
     def login(self, email: str, password: str) -> bool:
         """Login and get access token."""
         try:
@@ -71,6 +100,28 @@ class ChatTester:
         except Exception as e:
             print(f"⚠️ Warning during chat cleanup: {e}")
     
+    def create_encrypted_message(self, plaintext: str) -> Dict[str, Any]:
+        """Create a mock encrypted message for testing."""
+        try:
+            # Mock encryption - just add a suffix to simulate encryption
+            plaintext_bytes = plaintext.encode('utf-8')
+            mock_encrypted = plaintext_bytes + b'_encrypted_mock'
+            content_hash = hashlib.sha256(mock_encrypted).hexdigest()
+            
+            return {
+                "encrypted_message": base64.b64encode(mock_encrypted).decode('utf-8'),
+                "encryption_metadata": {
+                    "algorithm": "AES-256-GCM",
+                    "key_id": "test_key_123",
+                    "iv": base64.b64encode(b'123456789012').decode('utf-8'),  # 12-byte IV
+                    "created_at": "2025-01-01T00:00:00.000000"
+                },
+                "content_hash": content_hash
+            }
+        except Exception as e:
+            print(f"❌ Error creating encrypted message: {e}")
+            return None
+    
     def test_create_session(self) -> str:
         """Test creating a new chat session."""
         try:
@@ -95,14 +146,22 @@ class ChatTester:
     def test_chat_message(self, session_id: str, message: str) -> bool:
         """Test sending a chat message."""
         try:
+            # Create encrypted message
+            encrypted_data = self.create_encrypted_message(message)
+            if not encrypted_data:
+                return False
+            
+            # Add session_id to the encrypted data
+            encrypted_data["session_id"] = session_id
+            
             response = self.session.post(
                 f"{self.base_url}/api/chat",
-                json={"message": message, "session_id": session_id}
+                json=encrypted_data
             )
             
             if response.status_code == 200:
                 data = response.json()
-                print(f"✅ Chat message sent: {data['response'][:50]}...")
+                print(f"✅ Chat message sent: {data['encrypted_response'][:50]}...")
                 return True
             else:
                 print(f"❌ Chat message failed: {response.status_code} - {response.text}")
@@ -188,7 +247,11 @@ class ChatTester:
         print("=" * 50)
         
         try:
-            # Login first
+            # Register and login first
+            if not self.register_user(TEST_EMAIL, TEST_PASSWORD, TEST_PHONE):
+                print("❌ Cannot proceed without user registration")
+                return False
+            
             if not self.login(TEST_EMAIL, TEST_PASSWORD):
                 print("❌ Cannot proceed without login")
                 return False

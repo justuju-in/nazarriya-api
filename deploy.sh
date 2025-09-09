@@ -56,7 +56,14 @@ if ! command -v docker &> /dev/null; then
     sudo apt update
     sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
     sudo usermod -aG docker $USER
-    print_warning "Docker installed. You may need to log out and back in for group changes to take effect."
+    
+    print_warning "Docker installed successfully!"
+    print_warning "Your user has been added to the docker group."
+    print_warning "You need to log out and log back in for the group changes to take effect."
+    print_warning "After logging back in, run this script again to continue with the deployment."
+    print_status "Logging out in 5 seconds..."
+    sleep 5
+    sudo pkill -KILL -u $USER
 else
     print_status "Docker is already installed"
 fi
@@ -91,7 +98,7 @@ GITHUB_USERNAME="justuju-in"
 print_status "Using default GitHub username: $GITHUB_USERNAME"
 
 # Allow user to override if needed
-read -p "Press Enter to use '$GITHUB_USERNAME' or type a different username: " USER_INPUT
+read -p "Press Enter to use '$GITHUB_USERNAME' as the GitHub username or type a different username: " USER_INPUT
 if [ ! -z "$USER_INPUT" ]; then
     GITHUB_USERNAME="$USER_INPUT"
     print_status "Using custom GitHub username: $GITHUB_USERNAME"
@@ -116,6 +123,7 @@ cat > $ENV_FILE << EOF
 POSTGRES_PASSWORD=your_secure_password_here
 
 # API Server Configuration
+# You can use python3 -c "import secrets; print(secrets.token_urlsafe(32))" to generate a 32-byte random key.
 SECRET_KEY=your_very_long_secret_key_here
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
 DEBUG=False

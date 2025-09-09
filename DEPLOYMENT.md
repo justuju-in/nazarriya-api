@@ -54,14 +54,7 @@ This guide covers deploying both the Nazarriya API server and LLM service on Het
 
 ```bash
 # SSH into your server
-ssh root@YOUR_SERVER_IP
-
-# Create a non-root user
-adduser nazarriya
-usermod -aG sudo nazarriya
-
-# Switch to the new user
-su - nazarriya
+ssh ubuntu@YOUR_SERVER_IP # This assumes that you have applied Justuju's cloud config file
 ```
 
 ### 3. Run Deployment Script
@@ -153,8 +146,8 @@ sudo chown $USER:$USER /opt/nazarriya
 
 # Clone repositories
 cd /opt/nazarriya
-git clone https://github.com/yourusername/nazarriya-api.git
-git clone https://github.com/yourusername/nazarriya-llm.git
+git clone https://github.com/justuju-in/nazarriya-api.git
+git clone https://github.com/justuju-in/nazarriya-llm.git
 ```
 
 ### 3. Configure and Start Services
@@ -247,11 +240,12 @@ sudo apt install -y nginx
 
 ### 2. Configure Nginx
 
+**Note**: Make sure to replace your-domain.com with your actual address.
+
 Create `/etc/nginx/sites-available/nazarriya`:
 
 ```nginx
 server {
-    listen 80;
     server_name your-domain.com;
 
     location / {
