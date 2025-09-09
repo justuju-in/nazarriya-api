@@ -46,7 +46,11 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         logger.info(f"REQUEST: {request.method} {request.url}")
         logger.info(f"Headers: {dict(request.headers)}")
         if body:
-            logger.info(f"Request Body: {body}")
+            # Sanitize sensitive endpoints
+            if self._should_sanitize_request_body(request.url.path):
+                logger.info(f"Request Body: [SENSITIVE_DATA_REDACTED]")
+            else:
+                logger.info(f"Request Body: {body}")
         
         # Process request
         response = await call_next(request)
@@ -92,6 +96,18 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         if request.url.path in ["/health", "/ping", "/status"]:
             return True
             
+        return False
+
+    def _should_sanitize_request_body(self, url_path: str) -> bool:
+        """Determine if we should sanitize the request body for this endpoint."""
+        # Sanitize authentication endpoints
+        if url_path in ["/auth/login", "/auth/register", "/auth/refresh"]:
+            return True
+
+        # Sanitize any auth-related endpoints
+        if "/auth/" in url_path:
+            return True
+
         return False
 
 def log_api_call(func_name: str, **kwargs):
