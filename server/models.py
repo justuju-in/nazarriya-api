@@ -95,6 +95,7 @@ class ChatMessageRequest(BaseModel):
     encryption_metadata: dict
     content_hash: str
     session_id: Optional[str] = None
+    title: Optional[str] = None  # Optional title for new sessions
 
 class ChatResponse(BaseModel):
     session_id: str

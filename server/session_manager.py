@@ -48,12 +48,8 @@ def add_message(session_id: str, sender: str, encrypted_content: bytes, encrypti
     )
     db.add(message)
     
-    # Update session title if this is the first user message
-    if sender == "user" and (not session.title or session.title == "New Chat Session"):
-        # For encrypted messages, we can't generate title from content
-        # Use a generic title or let the client provide one
-        session.title = "Encrypted Chat Session"
-        session.updated_at = datetime.utcnow()
+    # Update session timestamp
+    session.updated_at = datetime.utcnow()
     
     db.commit()
     db.refresh(message)

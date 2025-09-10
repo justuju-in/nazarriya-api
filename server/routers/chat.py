@@ -28,8 +28,10 @@ def chat_endpoint(
     try:
         # Create session if not provided
         if not msg.session_id:
-            session_id = session_manager.create_session(str(current_user.id), db)
-            logger.info(f"Created new session: {session_id}")
+            # Use client-provided title or generate a default one
+            session_title = msg.title or "New Chat Session"
+            session_id = session_manager.create_session(str(current_user.id), db, session_title)
+            logger.info(f"Created new session: {session_id} with title: {session_title}")
         else:
             # Verify the session belongs to the current user
             session = session_manager.get_session_by_id(msg.session_id, str(current_user.id), db)

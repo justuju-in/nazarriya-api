@@ -1,5 +1,45 @@
 # Nazarriya Deployment Guide for Hetzner Cloud
 
+  * [Prerequisites](#prerequisites)
+  * [Architecture Overview](#architecture-overview)
+  * [Server Requirements](#server-requirements)
+  * [Quick Deployment](#quick-deployment)
+    + [1. Create Hetzner Server](#1-create-hetzner-server)
+    + [2. Initial Server Setup](#2-initial-server-setup)
+    + [3. Run Deployment Script](#3-run-deployment-script)
+    + [4. Configure Environment Variables](#4-configure-environment-variables)
+    + [5. Ingest documents](#5-ingest-documents)
+  * [Manual Deployment Steps](#manual-deployment-steps)
+    + [1. Install Docker](#1-install-docker)
+    + [2. Clone Repositories](#2-clone-repositories)
+    + [3. Configure and Start Services](#3-configure-and-start-services)
+  * [Service Management](#service-management)
+    + [View Service Status](#view-service-status)
+    + [View Logs](#view-logs)
+    + [Restart Services](#restart-services)
+    + [Stop Services](#stop-services)
+    + [Update Services](#update-services)
+  * [Database Management](#database-management)
+    + [Run Migrations](#run-migrations)
+    + [Backup Database](#backup-database)
+  * [SSL and Domain Setup](#ssl-and-domain-setup)
+    + [1. Install Nginx](#1-install-nginx)
+    + [2. Configure Nginx](#2-configure-nginx)
+    + [3. Enable Site and SSL](#3-enable-site-and-ssl)
+  * [Monitoring and Maintenance](#monitoring-and-maintenance)
+    + [Health Checks](#health-checks)
+    + [Log Rotation](#log-rotation)
+    + [Backup Strategy](#backup-strategy)
+  * [Troubleshooting](#troubleshooting)
+    + [Common Issues](#common-issues)
+    + [Debug Commands](#debug-commands)
+  * [Security Considerations](#security-considerations)
+  * [Scaling Considerations](#scaling-considerations)
+  * [Support](#support)
+
+<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
+
+
 This guide covers deploying both the Nazarriya API server and LLM service on Hetzner Cloud using Docker.
 
 ## Prerequisites
@@ -209,6 +249,39 @@ docker-compose up -d --build
 ```
 
 ## Database Management
+
+### Access PostgreSQL Database
+
+```bash
+# Connect to the PostgreSQL container
+docker-compose exec postgres psql -U nazarriya_user -d nazarriya
+
+# Once connected, you can run SQL commands:
+# List all tables
+\dt
+
+# Check table structure
+\d table_name
+
+# View data in a table
+SELECT * FROM table_name;
+
+# Exit when done
+\q
+```
+
+```bash
+# Connect and explore interactively
+docker-compose exec postgres psql -U nazarriya_user -d nazarriya
+
+# Useful commands once connected:
+\l                    # List all databases
+\c nazarriya         # Connect to nazarriya database
+\dt                  # List all tables
+\d+ table_name       # Describe table with details
+\du                  # List all users
+\q                   # Quit
+```
 
 ### Run Migrations
 
